@@ -20,7 +20,8 @@ export type InvitationResponseOptions<C extends OrganizationClient> = WorkflowFe
         result: Data<C["organization"]["rejectInvitation"]>;
     }>;
 };
-type ReadState<T> = Omit<Result<T>, "error"> & {
+type ReadState<T> = Omit<Result<T>, "error" | "isPending"> & {
+    isLoading: boolean;
     queryError: unknown;
 };
 type RecipientActions<C extends OrganizationClient> = WorkflowActionState & {

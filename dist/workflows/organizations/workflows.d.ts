@@ -93,6 +93,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;
@@ -103,7 +104,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
         onCreated?: Callback;
     }) => {
         feedback: import("../shared/types.js").WorkflowFeedback[];
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         refetch: () => Promise<import("../../client/types.js").RefetchResult<unknown> | undefined>;
@@ -115,6 +116,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
                 disabledReason: import("../shared/types.js").WorkflowDisabledReason | null;
             };
         };
+        isPending: boolean;
         values: {
             [x: string]: unknown;
         };
@@ -209,10 +211,11 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
             };
         } | null;
         hasServerChanges: boolean;
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         refetch: () => Promise<void>;
+        isPending: boolean;
         diagnostics: {
             pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
             error: WorkflowError | null;
@@ -227,7 +230,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
         total: number;
         page: number;
         pageSize: number;
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         hasNextPage: boolean;
@@ -251,6 +254,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
             };
         };
         feedback: import("../shared/types.js").WorkflowFeedback[];
+        isPending: boolean;
         diagnostics: {
             pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
             error: WorkflowError | null;
@@ -279,7 +283,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
         onCreated?: Callback;
     }, {
         feedback: import("../shared/types.js").WorkflowFeedback[];
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         refetch: () => Promise<import("../../client/types.js").RefetchResult<unknown> | undefined>;
@@ -291,6 +295,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
                 disabledReason: import("../shared/types.js").WorkflowDisabledReason | null;
             };
         };
+        isPending: boolean;
         values: {
             [x: string]: unknown;
         };
@@ -385,10 +390,11 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
             };
         } | null;
         hasServerChanges: boolean;
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         refetch: () => Promise<void>;
+        isPending: boolean;
         diagnostics: {
             pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
             error: WorkflowError | null;
@@ -419,6 +425,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;
@@ -449,7 +456,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
     }) => import("react").ReactNode;
     useOrganizationCreateFormContext: () => {
         feedback: import("../shared/types.js").WorkflowFeedback[];
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         refetch: () => Promise<import("../../client/types.js").RefetchResult<unknown> | undefined>;
@@ -461,6 +468,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
                 disabledReason: import("../shared/types.js").WorkflowDisabledReason | null;
             };
         };
+        isPending: boolean;
         values: {
             [x: string]: unknown;
         };
@@ -558,10 +566,11 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
             };
         } | null;
         hasServerChanges: boolean;
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         refetch: () => Promise<void>;
+        isPending: boolean;
         diagnostics: {
             pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
             error: WorkflowError | null;
@@ -579,7 +588,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
         total: number;
         page: number;
         pageSize: number;
-        isPending: boolean;
+        isLoading: boolean;
         isFetching: boolean;
         queryError: unknown;
         hasNextPage: boolean;
@@ -603,6 +612,7 @@ export declare function createOrganizationWorkflows(client: OrganizationReads, r
             };
         };
         feedback: import("../shared/types.js").WorkflowFeedback[];
+        isPending: boolean;
         diagnostics: {
             pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
             error: WorkflowError | null;

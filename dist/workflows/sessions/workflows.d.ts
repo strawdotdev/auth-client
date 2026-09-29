@@ -57,6 +57,7 @@ export declare function createSessionWorkflows(client: SessionReads, runtime: Ca
             error: import("../shared/types.js").WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;
@@ -108,6 +109,7 @@ export declare function createSessionWorkflows(client: SessionReads, runtime: Ca
             error: import("../shared/types.js").WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;

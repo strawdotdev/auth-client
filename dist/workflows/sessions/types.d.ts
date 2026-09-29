@@ -5,7 +5,8 @@ type Callback<T> = (value: T) => void | Promise<void>;
 type Component<P, _State> = (props: P & {
     children?: ReactNode;
 }) => ReactNode;
-type Read<T> = Omit<Result<T>, "error"> & {
+type Read<T> = Omit<Result<T>, "error" | "isPending"> & {
+    isLoading: boolean;
     queryError: unknown;
 };
 export type SessionsOptions<C extends SessionsClient> = WorkflowFeedbackOptions & {

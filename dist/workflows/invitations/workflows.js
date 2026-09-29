@@ -13,8 +13,9 @@ function asRecords(value) {
         ? value.map(asRecord).filter((item) => item !== undefined)
         : [];
 }
-function readState({ error, ...state }) {
-    return { ...state, queryError: error };
+/** Read state for workflows; `isPending` stays reserved for owned actions. */
+function readState({ error, isPending, ...state }) {
+    return { ...state, isLoading: isPending, queryError: error };
 }
 function validateValues(values) {
     const errors = {};

@@ -160,6 +160,7 @@ export declare function createInvitationWorkflows(client: InvitationReads, runti
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;
@@ -193,6 +194,7 @@ export declare function createInvitationWorkflows(client: InvitationReads, runti
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         isFetching: boolean;
         refetch(): Promise<import("../../client/types.js").RefetchResult<unknown> | undefined>;
@@ -219,6 +221,7 @@ export declare function createInvitationWorkflows(client: InvitationReads, runti
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;
@@ -324,6 +327,7 @@ export declare function createInvitationWorkflows(client: InvitationReads, runti
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;
@@ -368,6 +372,7 @@ export declare function createInvitationWorkflows(client: InvitationReads, runti
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         isFetching: boolean;
         refetch(): Promise<import("../../client/types.js").RefetchResult<unknown> | undefined>;
@@ -406,6 +411,7 @@ export declare function createInvitationWorkflows(client: InvitationReads, runti
             error: WorkflowError | null;
         };
         reset: () => void;
+        isLoading: boolean;
         queryError: unknown;
         data: unknown;
         isFetching: boolean;

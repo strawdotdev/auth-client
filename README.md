@@ -84,7 +84,7 @@ function InvitationControls() {
 }
 ```
 
-Use `queryError` and read loading state for initial content. Action handles already compute eligibility: `run`, `isDisabled`, `isPending`, and structured `disabledReason`. The workflow's aggregate `isPending` is suitable for presentation such as preventing a containing dialog from closing while any owned action runs. Applications need not inspect diagnostics or combine loading, permissions, conflicts, or recovery flags.
+Workflows that own a read expose `isLoading` (no settled result yet), `isFetching`, and `queryError` for initial content. Their `isPending` always means an owned action is running, never that the read is loading. Action handles already compute eligibility: `run`, `isDisabled`, `isPending`, and structured `disabledReason`. The workflow's aggregate `isPending` is suitable for presentation such as preventing a containing dialog from closing while any owned action runs. Applications need not inspect diagnostics or combine loading, permissions, conflicts, or recovery flags.
 
 ## Forms and typed composition
 
@@ -261,7 +261,7 @@ The workflows replace supported-domain form state, action readiness, conflict gu
 Install the precompiled release:
 
 ```sh
-pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.4.3'
+pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.5.0'
 ```
 
 Release tags contain the ready-to-use package at the repository root: JavaScript, declarations, and source maps. Installation does not compile this library, install its development tooling, or require permission to run its build scripts. The application still bundles normally and supplies the documented peer dependencies and authentication/backend configuration.

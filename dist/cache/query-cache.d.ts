@@ -56,6 +56,7 @@ export declare class CacheRuntime {
     getAuthRevision: () => number;
     refreshSession(): Promise<void>;
     waitForAuth(predicate: (observation: AuthObservation) => boolean, signal: AbortSignal, timeout?: number, rejectWhen?: (observation: AuthObservation) => unknown): Promise<AuthObservation>;
+    /** Private data belongs to one user session; readiness and token refreshes keep it. */
     setIdentity(identity: Identity): void;
     watch(deps: ResourceDependency[], listener: (error: unknown, denied: boolean) => void): () => void;
     refresh(): Promise<void>;

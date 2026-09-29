@@ -15,7 +15,7 @@ export type OrganizationScope =
   | { organizationSlug: string; organizationId?: never };
 type Callback<T> = (value: T) => void | Promise<void>;
 type Component<P, _State> = (props: P & { children?: ReactNode }) => ReactNode;
-type Read<T> = Omit<Result<T>, "error"> & { queryError: unknown };
+type Read<T> = Omit<Result<T>, "error" | "isPending"> & { isLoading: boolean; queryError: unknown };
 export type DirectoryOrganization<C extends OrganizationClient> =
   NonNullable<Data<C["organization"]["list"]>> extends readonly (infer O)[] ? O : never;
 export type FullOrganization<C extends OrganizationClient> = NonNullable<
@@ -61,7 +61,8 @@ export type OrganizationCreateState<
   C extends OrganizationClient,
   V = OrganizationCreateValues<C>,
 > = WorkflowForm<V, OrganizationCompletion<C, "create">> & {
-  isPending: boolean;
+  /** The workflow read has no settled result yet. */
+  isLoading: boolean;
   isFetching: boolean;
   queryError: unknown;
   refetch: Result<Data<C["organization"]["list"]>>["refetch"];
@@ -116,7 +117,8 @@ export type OrganizationSettingsState<
   };
   organization: FullOrganization<C> | undefined;
   role: string | undefined;
-  isPending: boolean;
+  /** The workflow read has no settled result yet. */
+  isLoading: boolean;
   isFetching: boolean;
   queryError: unknown;
   form: WorkflowForm<V, OrganizationCompletion<C, "update">> | null;

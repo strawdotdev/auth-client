@@ -30,9 +30,10 @@ export function createSessionWorkflows(client, runtime) {
                 return result;
             });
         }
-        const { error: queryError, ...read } = query;
+        const { error: queryError, isPending: isLoading, ...read } = query;
         return {
             ...read,
+            isLoading,
             queryError,
             ...getActionState(action),
             session: (sessionId) => ({

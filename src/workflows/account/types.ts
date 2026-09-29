@@ -50,7 +50,8 @@ export type ProfileSettingsState<
   V = ProfileUpdateValues<C>,
 > = WorkflowActionState & {
   user: U | undefined;
-  isPending: boolean;
+  /** The current user has no settled result yet. */
+  isLoading: boolean;
   queryError: unknown;
   form: WorkflowForm<V, { outcome: "updated"; user: U }> | null;
   actions: {

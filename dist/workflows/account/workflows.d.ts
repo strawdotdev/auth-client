@@ -11,7 +11,7 @@ export declare function createAccountWorkflows<U extends {
 }>(auth: AccountClient, runtime: CacheRuntime, currentUser: CurrentUserBinding<U>): {
     [x: string]: ((schema: ZodType<Values, Values>) => import("../shared/root.js").WorkflowDefinition<Options, {
         user: U | undefined;
-        isPending: boolean;
+        isLoading: boolean;
         queryError: unknown;
         form: {
             feedback: WorkflowFeedback[];
@@ -58,6 +58,7 @@ export declare function createAccountWorkflows<U extends {
             updateImage: WorkflowAction<[image: string | null], unknown>;
         };
         feedback: WorkflowFeedback[];
+        isPending: boolean;
         diagnostics: {
             pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
             error: import("../shared/types.js").WorkflowError | null;
@@ -84,7 +85,7 @@ export declare function createAccountWorkflows<U extends {
         children?: import("react").ReactNode;
     }) => import("react").ReactNode) | ((options: Options) => {
         user: U | undefined;
-        isPending: boolean;
+        isLoading: boolean;
         queryError: unknown;
         form: {
             feedback: WorkflowFeedback[];
@@ -131,6 +132,7 @@ export declare function createAccountWorkflows<U extends {
             updateImage: WorkflowAction<[image: string | null], unknown>;
         };
         feedback: WorkflowFeedback[];
+        isPending: boolean;
         diagnostics: {
             pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
             error: import("../shared/types.js").WorkflowError | null;
