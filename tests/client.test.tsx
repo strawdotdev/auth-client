@@ -116,6 +116,60 @@ it("reads with the Better Auth session before Convex authenticates and keeps tha
   authData.dispose();
 });
 
+it("lets an in-flight read finish on the first freshness signal, then refetches once", async () => {
+  let update = () => {};
+  let signal: unknown;
+  convex.watchQuery.mockReturnValue({
+    onUpdate: (callback: () => void) => {
+      update = callback;
+      return () => {};
+    },
+    localQueryResult: () => signal,
+  } as any);
+  let resolveFirst!: (value: unknown) => void;
+  const listSessions = vi
+    .fn()
+    .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+    .mockResolvedValue([{ id: "fresh" }]);
+  const auth = {
+    useSession: () => ({
+      data: { user: { id: "user" }, session: { id: "session" } },
+      isPending: false,
+    }),
+    listSessions,
+    revokeSession: vi.fn(),
+    revokeOtherSessions: vi.fn(),
+    revokeSessions: vi.fn(),
+  };
+  const authData = createAuthDataClient({ authClient: auth, api, features: { sessions: true } });
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <AuthDataProvider client={authData}>{children}</AuthDataProvider>;
+  }
+  const hook = renderHook(() => authData.useListSessions(), { wrapper: Wrapper });
+  await waitFor(() => expect(listSessions).toHaveBeenCalledOnce());
+  signal = {
+    protocol: 1,
+    features: { sessions: true },
+    userId: "user",
+    denied: false,
+    revisions: [1],
+  };
+  await act(async () => {
+    update();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  const firstRequest = listSessions.mock.calls[0]![0] as { fetchOptions: { signal: AbortSignal } };
+  expect(firstRequest.fetchOptions.signal.aborted).toBe(false);
+  expect(listSessions).toHaveBeenCalledOnce();
+  await act(async () => resolveFirst([{ id: "first" }]));
+  await waitFor(() => expect(hook.result.current.data).toEqual([{ id: "fresh" }]));
+  expect(listSessions).toHaveBeenCalledTimes(2);
+  signal = { ...(signal as object), revisions: [2] };
+  act(() => update());
+  await waitFor(() => expect(listSessions).toHaveBeenCalledTimes(3));
+  authData.dispose();
+});
+
 it("surfaces backend protocol errors and rejects explicit refresh", async () => {
   const signal = {
     protocol: 99,

@@ -1,5 +1,15 @@
 # Verification
 
+## v0.5.1 — 2026-09-29
+
+A resource's first freshness signal no longer cancels and restarts a read that is already in
+flight. The read finishes and its result is shown, then the resource refetches once in the
+background, so first paint needs one round trip instead of two while no change between the read
+and the signal can be missed. Later signals keep cancelling obsolete reads as before.
+
+- `pnpm check` and 94 controlled tests pass, including a regression that fails on v0.5.0.
+- `pnpm test:package` and `pnpm test:git`: compiled and Git-package installations passed.
+
 ## v0.5.0 — 2026-09-29
 
 Workflows now keep one loading contract: `isPending` means an owned action is running, and

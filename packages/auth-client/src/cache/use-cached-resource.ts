@@ -54,6 +54,7 @@ export function useCachedResource(
     if (!ready) return;
     const stops: Array<() => void> = [];
     const states = new Map<number, { error: unknown; denied: boolean }>();
+    const signalled = new Set<number>();
     let active = true;
     for (let i = 0; i < deps.length; i += 100)
       stops.push(
@@ -67,7 +68,11 @@ export function useCachedResource(
             denied: all.some((state) => state.denied),
           });
           if (error) return;
-          void runtime.invalidate([key]).catch(() => {});
+          if (signalled.has(i)) void runtime.invalidate([key]).catch(() => {});
+          else {
+            signalled.add(i);
+            stops.push(runtime.refreshAfterFetch(key));
+          }
         }),
       );
     return () => {
