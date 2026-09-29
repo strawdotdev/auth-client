@@ -144,6 +144,27 @@ export class CacheRuntime {
     return task;
   }
 
+  /**
+   * A resource's first freshness signal cannot tell whether a request already in flight read the
+   * signalled state. Let that request finish and show its result, then refetch once.
+   */
+  refreshAfterFetch(key: QueryKey) {
+    const hash = hashKey(key);
+    const queries = this.cache.getQueryCache();
+    if (queries.get(hash)?.state.fetchStatus !== "fetching") {
+      void this.invalidate([key]).catch(() => {});
+      return () => {};
+    }
+    const generation = this.generation;
+    const stop = queries.subscribe(({ query }) => {
+      if (query.queryHash !== hash || query.state.fetchStatus === "fetching") return;
+      stop();
+      if (!this.disposed && generation === this.generation)
+        void this.invalidate([key]).catch(() => {});
+    });
+    return stop;
+  }
+
   async refreshResource(key: QueryKey) {
     // Invalidation cancels obsolete requests. Waiting for its replacement work
     // avoids returning TanStack's reverted, pre-write data from observer.refetch.

@@ -46,6 +46,7 @@ export function useCachedResource(runtime, endpoint, fn, query = {}, options = {
             return;
         const stops = [];
         const states = new Map();
+        const signalled = new Set();
         let active = true;
         for (let i = 0; i < deps.length; i += 100)
             stops.push(runtime.watch(deps.slice(i, i + 100), (error, denied) => {
@@ -60,7 +61,12 @@ export function useCachedResource(runtime, endpoint, fn, query = {}, options = {
                 });
                 if (error)
                     return;
-                void runtime.invalidate([key]).catch(() => { });
+                if (signalled.has(i))
+                    void runtime.invalidate([key]).catch(() => { });
+                else {
+                    signalled.add(i);
+                    stops.push(runtime.refreshAfterFetch(key));
+                }
             }));
         return () => {
             active = false;

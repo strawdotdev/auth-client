@@ -261,7 +261,7 @@ The workflows replace supported-domain form state, action readiness, conflict gu
 Install the precompiled release:
 
 ```sh
-pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.5.0'
+pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.5.1'
 ```
 
 Release tags contain the ready-to-use package at the repository root: JavaScript, declarations, and source maps. Installation does not compile this library, install its development tooling, or require permission to run its build scripts. The application still bundles normally and supplies the documented peer dependencies and authentication/backend configuration.

@@ -41,6 +41,11 @@ export declare class CacheRuntime {
     private scheduledKeys?;
     inFlight: Map<Promise<void>, Set<string>>;
     invalidate(keys: readonly QueryKey[]): Promise<void>;
+    /**
+     * A resource's first freshness signal cannot tell whether a request already in flight read the
+     * signalled state. Let that request finish and show its result, then refetch once.
+     */
+    refreshAfterFetch(key: QueryKey): () => void;
     refreshResource(key: QueryKey): Promise<{
         data: unknown;
         error: null;
