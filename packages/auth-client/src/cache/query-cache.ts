@@ -245,8 +245,9 @@ export class CacheRuntime {
       signal.addEventListener("abort", abort, { once: true });
     });
   }
+  /** Private data belongs to one user session; readiness and token refreshes keep it. */
   setIdentity(identity: Identity) {
-    const key = JSON.stringify(identity);
+    const key = JSON.stringify([identity.userId ?? null, identity.sessionId ?? null]);
     if (this.identity === key) return;
     this.identity = key;
     this.userId = identity.userId;

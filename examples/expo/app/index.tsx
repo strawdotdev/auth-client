@@ -624,7 +624,7 @@ function InvitationResponseControls() {
   return (
     <View>
       <Text>
-        {invitation.isPending
+        {invitation.isLoading
           ? "Loading invitation"
           : (invitation.invitation?.organizationName ?? "Invitation unavailable")}
       </Text>

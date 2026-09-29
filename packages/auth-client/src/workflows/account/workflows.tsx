@@ -269,7 +269,7 @@ export function createAccountWorkflows<U extends { email: string }>(
     return {
       ...state,
       user,
-      isPending: source.isPending || action.isBusy,
+      isLoading: source.isPending,
       queryError: source.error,
       form: user ? form : null,
       actions: {

@@ -298,7 +298,7 @@ it.each([false, true])(
       { wrapper: f.wrapper },
     );
     unmount = hook.unmount;
-    await waitFor(() => expect(hook.result.current.isPending).toBe(false));
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
     await act(async () => {
       expect(await hook.result.current.actions.submit.run()).toMatchObject(
         failCallback
@@ -375,6 +375,16 @@ it("keeps directory selection controlled and applies fallback only without an ex
   await waitFor(() => expect(fallback.result.current.organization?.id).toBe("org"));
 });
 
+it("reports directory read loading separately from owned action pending", async () => {
+  const f = fixture();
+  const hook = renderHook(() => f.authData.useOrganizationDirectory(), { wrapper: f.wrapper });
+  expect(hook.result.current).toMatchObject({ isLoading: true, isPending: false, data: undefined });
+  expect(hook.result.current.status).toBe("loading");
+  await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+  expect(hook.result.current.data).toHaveLength(2);
+  expect(hook.result.current.isPending).toBe(false);
+});
+
 it("creates from a transformed draft, preserves active selection, and retries only failed synchronization", async () => {
   const f = fixture();
   const onCreated = vi.fn();
@@ -391,7 +401,7 @@ it("creates from a transformed draft, preserves active selection, and retries on
       }),
     { wrapper: f.wrapper },
   );
-  await waitFor(() => expect(hook.result.current.isPending).toBe(false));
+  await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
   f.failures.set("list", "SYNC_DOWN");
   await act(async () => {
     expect(await hook.result.current.actions.submit.run()).toMatchObject({

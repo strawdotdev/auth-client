@@ -61,8 +61,9 @@ function asRecords(value: unknown): Values[] {
     ? value.map(asRecord).filter((item): item is Values => item !== undefined)
     : [];
 }
-function readState<T>({ error, ...state }: Result<T>) {
-  return { ...state, queryError: error };
+/** Read state for workflows; `isPending` stays reserved for owned actions. */
+function readState<T>({ error, isPending, ...state }: Result<T>) {
+  return { ...state, isLoading: isPending, queryError: error };
 }
 function validateValues(values: Values): FormFieldErrors<Values> {
   const errors: FormFieldErrors<Values> = {};

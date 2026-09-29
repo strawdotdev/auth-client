@@ -10,12 +10,14 @@ import type { ReactNode } from "react";
 const convex = {
   watchQuery: vi.fn(() => ({ onUpdate: () => () => {}, localQueryResult: () => undefined })),
 };
+const convexAuth = { isAuthenticated: true, isLoading: false };
 vi.mock("convex/react", () => ({
   useConvex: () => convex,
-  useConvexAuth: () => ({ isAuthenticated: true }),
+  useConvexAuth: () => convexAuth,
 }));
 const api = { signals: makeFunctionReference<"query">("authData:signals") as any };
 afterEach(() => {
+  Object.assign(convexAuth, { isAuthenticated: true, isLoading: false });
   cleanup();
   vi.restoreAllMocks();
 });
@@ -82,6 +84,35 @@ it("uses a private cache without replacing application context and fetches hook 
   expect(listSessions.mock.calls[0]?.[0]).toMatchObject({
     fetchOptions: { throw: true, disableSignal: true },
   });
+  authData.dispose();
+});
+
+it("reads with the Better Auth session before Convex authenticates and keeps that result", async () => {
+  Object.assign(convexAuth, { isAuthenticated: false, isLoading: true });
+  convex.watchQuery.mockClear();
+  const listSessions = vi.fn(async () => [{ id: "session" }]);
+  const auth = {
+    useSession: () => ({
+      data: { user: { id: "user" }, session: { id: "session", token: "token" } },
+      isPending: false,
+    }),
+    listSessions,
+    revokeSession: vi.fn(),
+    revokeOtherSessions: vi.fn(),
+    revokeSessions: vi.fn(),
+  };
+  const authData = createAuthDataClient({ authClient: auth, api, features: { sessions: true } });
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <AuthDataProvider client={authData}>{children}</AuthDataProvider>;
+  }
+  const hook = renderHook(() => authData.useListSessions(), { wrapper: Wrapper });
+  await waitFor(() => expect(hook.result.current.data).toHaveLength(1));
+  expect(convex.watchQuery).not.toHaveBeenCalled();
+  Object.assign(convexAuth, { isAuthenticated: true, isLoading: false });
+  hook.rerender();
+  expect(hook.result.current.data).toHaveLength(1);
+  expect(hook.result.current.isPending).toBe(false);
+  expect(listSessions).toHaveBeenCalledOnce();
   authData.dispose();
 });
 

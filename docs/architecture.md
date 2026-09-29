@@ -56,7 +56,8 @@ Domain folders supply context, so their implementation and type files do not rep
 - `useOrganizationRecovery` owns only the minimal successful-write receipt. Canonical organizations remain in the existing query cache.
 - `useOrganizationResource` resolves explicit scope and observes organization/role reads. It does not select the session's active organization.
 - `FormFieldIssue`, `FormValidationIssue`, and `FormFieldErrors` describe shared form feedback. Schema definitions preserve input/output inference across root and context consumers.
-- Action handles, aggregate workflow `isPending`, and bound recovery feedback are the ordinary control contract. Diagnostic phases are for troubleshooting, not consumer sequencing. Recovery receipts remain internal to their domain.
+- Action handles, aggregate workflow `isPending`, and bound recovery feedback are the ordinary control contract. Workflow reads report `isLoading`, `isFetching`, and `queryError`; `isPending` never describes a read.
+- Resource reads start as soon as the Better Auth session is known; Convex authentication gates only the freshness signals. Cached results belong to one user session and survive readiness changes and token refreshes. Diagnostic phases are for troubleshooting, not consumer sequencing. Recovery receipts remain internal to their domain.
 
 Keep public names stable unless a consumer contract is intentionally revised. Internal filenames are not package exports. Do not import backend modules from frontend implementation, or React modules from backend helpers.
 

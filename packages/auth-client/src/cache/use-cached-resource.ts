@@ -18,7 +18,9 @@ export function useCachedResource(
   const enabled = options.enabled !== false;
   if (enabled) validateScope(endpoint, query);
   const disposed = useSyncExternalStore(runtime.subscribe, runtime.getDisposed);
-  const ready = enabled && identity.ready && !disposed;
+  // HTTP reads need only the Better Auth session; freshness signals need Convex authentication.
+  const fetchable = enabled && Boolean(identity.userId && identity.sessionId) && !disposed;
+  const ready = fetchable && identity.ready;
   const keyString = hashKey(["auth", identity.userId, identity.sessionId, endpoint, query]);
   // Subscription effects use TanStack's value equality rather than the caller's
   // object identity. The original query object still goes to Better Auth.
@@ -31,7 +33,7 @@ export function useCachedResource(
   const result = useQuery(
     {
       queryKey: key,
-      enabled: ready,
+      enabled: fetchable,
       queryFn: async ({ signal }) => {
         if (runtime.disposed) throw new Error("Adapter is disposed");
         const generation = runtime.generation;
@@ -83,12 +85,12 @@ export function useCachedResource(
     (sync.key === keyString && (sync.denied || sync.error != null)) ||
     isProtectedReadFailure(error);
   return {
-    data: ready && !denied ? result.data : undefined,
+    data: fetchable && !denied ? result.data : undefined,
     error,
-    isPending: enabled && !disposed && (!identity.ready || result.isPending),
-    isFetching: ready && result.isFetching,
+    isPending: enabled && !disposed && (!fetchable || result.isPending),
+    isFetching: fetchable && result.isFetching,
     refetch: async () => {
-      if (ready && !runtime.disposed) {
+      if (fetchable && !runtime.disposed) {
         const generation = runtime.generation;
         for (let i = 0; i < deps.length; i += 100)
           runtime.watches.get(hashKey(deps.slice(i, i + 100)))?.read();

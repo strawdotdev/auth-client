@@ -1,5 +1,21 @@
 # Verification
 
+## v0.5.0 — 2026-09-29
+
+Workflows now keep one loading contract: `isPending` means an owned action is running, and
+workflows that own a read expose `isLoading` for its unsettled result. Previously the directory,
+session and invitation workflows let action state overwrite read loading, so consumers saw neither
+data nor pending while the first list loaded; settings, members, creation and profile used
+`isPending` for their read instead. Resource reads now start once the Better Auth session is
+known instead of waiting for Convex authentication, and the private cache is keyed to the user
+session so readiness changes and token refreshes no longer discard in-flight reads.
+
+- `pnpm check` and 93 controlled tests pass, including regressions for directory loading and
+  session-only reads.
+- `pnpm test:package` and `pnpm test:git`: compiled and Git-package installations passed.
+- Gaia's root check, unit tests and Organization web journeys passed against the local build.
+  Breaking for consumers that read workflow `isPending` as read loading: use `isLoading`.
+
 ## v0.4.3 — 2026-09-16
 
 Form validation remains serialized by the workflow action lock, but validation issues are now

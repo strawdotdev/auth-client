@@ -80,8 +80,9 @@ const updateMinimum: ZodType<Values, Values> = looseObject({
 });
 const getOrganizationScopeKey = (options: OrganizationScope) =>
   hashKey([options.organizationId, options.organizationSlug]);
-function readState<T>({ error, ...query }: Result<T>) {
-  return { ...query, queryError: error };
+/** Read state for workflows; `isPending` stays reserved for owned actions. */
+function readState<T>({ error, isPending, ...query }: Result<T>) {
+  return { ...query, isLoading: isPending, queryError: error };
 }
 function editableOrganizationFields(values: Values) {
   const {
@@ -330,7 +331,7 @@ export function createOrganizationWorkflows(client: OrganizationReads, runtime: 
     return {
       ...form,
       feedback: recovery.feedback(),
-      isPending: directory.isPending,
+      isLoading: directory.isPending,
       isFetching: directory.isFetching,
       queryError: directory.error,
       refetch: () => directory.refetch(),
@@ -445,7 +446,7 @@ export function createOrganizationWorkflows(client: OrganizationReads, runtime: 
       role: resource.role,
       form: organization && action.available ? form : null,
       hasServerChanges: !!organization && form.hasServerChanges,
-      isPending: resource.query.isPending || resource.memberRole.isPending,
+      isLoading: resource.query.isPending || resource.memberRole.isPending,
       isFetching: resource.query.isFetching || resource.memberRole.isFetching,
       queryError: resource.query.error ?? resource.memberRole.error,
       refetch: async () => {
@@ -575,7 +576,7 @@ export function createOrganizationWorkflows(client: OrganizationReads, runtime: 
       total,
       page,
       pageSize: options.pageSize,
-      isPending:
+      isLoading:
         resource.query.isPending || resource.memberRole.isPending || query.isPending || outOfBounds,
       isFetching: resource.query.isFetching || resource.memberRole.isFetching || query.isFetching,
       queryError: resource.query.error ?? resource.memberRole.error ?? query.error,
