@@ -6,7 +6,13 @@ import type {
   Features,
   ResourceDependency,
 } from "../client/types.js";
-export type Identity = { userId?: string; sessionId?: string; ready: boolean };
+/** `isAnonymous` marks a Better Auth anonymous-plugin user: a guest with a session but no account. */
+export type Identity = {
+  userId?: string;
+  sessionId?: string;
+  isAnonymous: boolean;
+  ready: boolean;
+};
 export type AuthObservation = Identity & {
   sessionToken?: string;
   sessionPending: boolean;
@@ -41,6 +47,7 @@ export class CacheRuntime {
   attached = 0;
   attachmentRevision = 0;
   authObservation: AuthObservation = {
+    isAnonymous: false,
     ready: false,
     sessionPending: true,
     convexAuthenticated: false,

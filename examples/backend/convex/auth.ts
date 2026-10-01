@@ -1,6 +1,6 @@
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { betterAuth } from "better-auth/minimal";
-import { organization } from "better-auth/plugins";
+import { anonymous, organization } from "better-auth/plugins";
 import { expo } from "@better-auth/expo";
 import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { createSignalTriggers } from "@strawdev/auth-client/convex";
@@ -58,6 +58,9 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => ({
   },
   plugins: [
     expo(),
+    // Guests (the `/guest` page) are linked when they sign in or up. Keep the guest's user while
+    // its page still holds the guest session; an application forgets linked guests later.
+    anonymous({ disableDeleteAnonymousUser: true }),
     organization({
       schema: { invitation: { additionalFields: { ticket: { type: "number", required: false } } } },
       requireEmailVerificationOnInvitation: requireVerifiedInvitationEmail,

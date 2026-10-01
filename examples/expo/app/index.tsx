@@ -369,11 +369,11 @@ function Invitation({ id, onAccepted }: { id: string; onAccepted: (slug: string)
   );
 }
 
-function ActionButton({ title, action }: { title: string; action: WorkflowAction }) {
+export function ActionButton({ title, action }: { title: string; action: WorkflowAction }) {
   return <Button title={title} disabled={action.isDisabled} onPress={() => void action.run()} />;
 }
 
-function WorkflowFeedback({
+export function WorkflowFeedback({
   feedback,
   queryError,
   recoveryTitle = "Retry organization refresh",

@@ -8,7 +8,10 @@ export type {
 import type { InvitationSurface } from "../workflows/invitations/types.js";
 import type { OrganizationWorkflows } from "../workflows/organizations/types.js";
 import type { SessionWorkflows } from "../workflows/sessions/types.js";
-import type { AuthenticationWorkflows } from "../workflows/authentication/types.js";
+import type {
+  AuthenticationWorkflows,
+  GuestSessionWorkflow,
+} from "../workflows/authentication/types.js";
 import type { AccountWorkflows, CurrentUserBinding } from "../workflows/account/types.js";
 // Parameter variance bridge for Better Auth's generated generic methods.
 // Concrete endpoint signatures are retained in every consumer-facing surface.
@@ -16,7 +19,7 @@ export type Endpoint = (...args: any[]) => Promise<unknown>;
 export interface SessionClient {
   useSession(): {
     data: {
-      user: { id: string; email?: string };
+      user: { id: string; email?: string; isAnonymous?: boolean | null | undefined };
       session: { id: string; token?: string };
     } | null;
     isPending: boolean;
@@ -30,6 +33,10 @@ export type AuthenticationClient = SessionClient & {
   resetPassword: Endpoint;
   sendVerificationEmail: Endpoint;
   signOut: Endpoint;
+};
+/** Better Auth's `anonymousClient()` adds `signIn.anonymous`. */
+export type GuestClient = AuthenticationClient & {
+  signIn: { anonymous: Endpoint };
 };
 export type AccountClient = AuthenticationClient &
   SessionsClient & {
@@ -156,7 +163,8 @@ export type AuthDataClient<
     : unknown) &
   (F extends { account: true }
     ? AccountWorkflows<C extends AccountClient ? C : never, U>
-    : unknown);
+    : unknown) &
+  (F extends { guests: true } ? GuestSessionWorkflow : unknown);
 
 export type AuthDataClientConfig<
   C extends SessionClient,
@@ -167,9 +175,11 @@ export type AuthDataClientConfig<
     (F extends { organization: true } ? OrganizationClient : unknown) &
     (F extends { sessions: true } ? SessionsClient : unknown) &
     (F extends { authentication: true } ? AuthenticationClient : unknown) &
-    (F extends { account: true } ? AccountClient : unknown);
+    (F extends { account: true } ? AccountClient : unknown) &
+    (F extends { guests: true } ? GuestClient : unknown);
   api: InvalidationApi;
-  features: F;
+  /** `guests` needs `authentication`: signing out returns the visitor to a guest. */
+  features: F & (F extends { guests: true } ? { authentication: true } : unknown);
 } & (F extends { account: true }
   ? { currentUser: CurrentUserBinding<U> }
   : { currentUser?: never });

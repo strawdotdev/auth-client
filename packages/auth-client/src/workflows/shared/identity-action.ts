@@ -203,9 +203,19 @@ function isAvailable(
   if (viewHasRecovery(view)) return true;
   if (observation.sessionPending) return false;
   if (availability === "settled") return true;
-  if (availability === "guest") return !observation.userId;
+  // A guest (Better Auth anonymous user) signs in or up from their session and is linked.
+  if (availability === "guest") return !observation.userId || observation.isAnonymous;
+  if (guestRequiresAccount(runtime, availability)) return false;
   if (availability === "session") return Boolean(observation.userId && observation.sessionId);
   return observation.ready;
+}
+
+/** Reauthentication needs an account; so does signing out when the app keeps guests. */
+function guestRequiresAccount(runtime: CacheRuntime, availability: Availability) {
+  return (
+    runtime.authObservation.isAnonymous &&
+    (availability === "authenticated" || (availability === "session" && !!runtime.features.guests))
+  );
 }
 
 function viewHasRecovery(view: VisibleState | undefined) {
@@ -370,6 +380,9 @@ export function useIdentityAction(
   const view = store.view(scope);
   const owner = useIdentityOwner(runtime, scope, store, lifecycleOptions.onRetire);
   const available = isAvailable(runtime, availability, enabled, disposed, view);
+  const unavailableReason: WorkflowDisabledReason = guestRequiresAccount(runtime, availability)
+    ? { code: "accountRequired" }
+    : { code: "disabled" };
   const current = () => !runtime.disposed;
   const busy = () => store.view(scope)?.pending != null;
   function reset() {
@@ -399,6 +412,7 @@ export function useIdentityAction(
       target,
       locks.conflicts(target, runtime.generation),
       reason,
+      unavailableReason,
     );
   }
   return {

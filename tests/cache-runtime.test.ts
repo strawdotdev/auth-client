@@ -27,7 +27,7 @@ function fixture() {
     { sessions: true },
   );
   const detach = runtime.attach(convex as unknown as ConvexReactClient);
-  runtime.setIdentity({ userId: "user", sessionId: "one", ready: true });
+  runtime.setIdentity({ userId: "user", sessionId: "one", isAnonymous: false, ready: true });
   return { runtime, convex, updates, stop, detach };
 }
 const deps = [{ scope: "sessions", subject: "user" }] as const;
@@ -54,7 +54,7 @@ it("old session cleanup and queued callbacks cannot affect a replacement watch",
   const first = vi.fn();
   const second = vi.fn();
   const leaveFirst = runtime.watch([...deps], first);
-  runtime.setIdentity({ userId: "user", sessionId: "two", ready: true });
+  runtime.setIdentity({ userId: "user", sessionId: "two", isAnonymous: false, ready: true });
   const leaveSecond = runtime.watch([...deps], second);
   leaveFirst();
   updates[0]?.();
@@ -174,7 +174,7 @@ it("keeps new-session invalidation work when an old microtask is still queued", 
   const { runtime } = fixture();
   const invalidate = vi.spyOn(runtime.cache, "invalidateQueries").mockResolvedValue();
   const old = runtime.invalidate([["old-session"]]);
-  runtime.setIdentity({ userId: "user", sessionId: "two", ready: true });
+  runtime.setIdentity({ userId: "user", sessionId: "two", isAnonymous: false, ready: true });
   const current = runtime.invalidate([["new-session"]]);
   await Promise.all([old, current]);
   expect(invalidate).toHaveBeenCalledTimes(1);

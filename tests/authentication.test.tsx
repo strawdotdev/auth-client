@@ -3,7 +3,11 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { makeFunctionReference } from "convex/server";
-import { AuthDataProvider, createAuthDataClient } from "../packages/auth-client/src/index.js";
+import {
+  AuthDataProvider,
+  createAuthDataClient,
+  type AuthDataLifecycle,
+} from "../packages/auth-client/src/index.js";
 
 let convexAuthenticated = false;
 const convex = {
@@ -27,7 +31,7 @@ afterEach(() => {
 });
 
 type Session = {
-  user: { id: string; email: string };
+  user: { id: string; email: string; isAnonymous?: boolean };
   session: { id: string; token: string };
 };
 function deferred<T>() {
@@ -44,6 +48,7 @@ function sessionStore(initial: Session | null) {
   let revision = 0;
   let refreshFailure: unknown;
   let failAfterRefresh = false;
+  let lagRefresh = false;
   const listeners = new Set<() => void>();
   convexAuthenticated = Boolean(initial);
   const emit = () => {
@@ -71,7 +76,9 @@ function sessionStore(initial: Session | null) {
           }
           session = next;
           convexAuthenticated = Boolean(session);
-          emit();
+          // Better Auth can settle a refetch before its subscribers render the new session.
+          if (lagRefresh) setTimeout(emit, 0);
+          else emit();
           if (failAfterRefresh) {
             failAfterRefresh = false;
             throw new Error("session read failed after transition");
@@ -89,15 +96,21 @@ function sessionStore(initial: Session | null) {
     failAfterNextRefresh() {
       failAfterRefresh = true;
     },
+    lagRefreshes() {
+      lagRefresh = true;
+    },
   };
 }
 
-function authenticationFixture(initial: Session | null = null) {
+function authenticationClient(initial: Session | null) {
   const sessions = sessionStore(initial);
   const auth = {
     useSession: () => sessions.useSession(),
     signIn: {
       email: vi.fn<(input: Record<string, unknown>) => Promise<unknown>>(async () => ({
+        status: true,
+      })),
+      anonymous: vi.fn<(input: Record<string, unknown>) => Promise<unknown>>(async () => ({
         status: true,
       })),
     },
@@ -111,17 +124,46 @@ function authenticationFixture(initial: Session | null = null) {
     sendVerificationEmail: vi.fn(async (_input: Record<string, unknown>) => ({ status: true })),
     signOut: vi.fn(async (_input: Record<string, unknown>) => ({ status: true })),
   };
-  const client = createAuthDataClient({
-    authClient: auth,
-    api,
-    features: { authentication: true },
-  });
+  return { auth, sessions };
+}
+
+function withProvider<T extends AuthDataLifecycle>(client: T) {
   disposals.push(() => client.dispose());
   const wrapper = ({ children }: { children: ReactNode }) => (
     <AuthDataProvider client={client}>{children}</AuthDataProvider>
   );
-  return { auth, client, sessions, wrapper };
+  return { client, wrapper };
 }
+
+function authenticationFixture(initial: Session | null = null) {
+  const { auth, sessions } = authenticationClient(initial);
+  const features = { authentication: true } as const;
+  return {
+    auth,
+    sessions,
+    ...withProvider(createAuthDataClient({ authClient: auth, api, features })),
+  };
+}
+
+/** An app that keeps guests: every visitor holds a session, a guest's at first. */
+function guestFixture(initial: Session | null = null) {
+  const { auth, sessions } = authenticationClient(initial);
+  const features = { authentication: true, guests: true } as const;
+  return {
+    auth,
+    sessions,
+    ...withProvider(createAuthDataClient({ authClient: auth, api, features })),
+  };
+}
+
+const guest = (id: string): Session => ({
+  user: { id, email: `temp@${id}.com`, isAnonymous: true },
+  session: { id: `${id}-session`, token: `private-${id}-token` },
+});
+const account: Session = {
+  user: { id: "user", email: "user@example.com" },
+  session: { id: "session", token: "private-token" },
+};
 
 it("keeps guest form validation inline without reporting an operation failure", async () => {
   const fixture = authenticationFixture();
@@ -768,4 +810,100 @@ it("recovers displaced-session cleanup without repeating reauthentication", asyn
   );
   expect(password.result.current.field("currentPassword").value).toBe("");
   expect(password.result.current.field("newPassword").value).toBe("");
+});
+
+it("links a guest's sign-in to the account instead of retiring it as an unrelated identity", async () => {
+  const fixture = authenticationFixture(guest("guest"));
+  fixture.sessions.lagRefreshes();
+  fixture.auth.signIn.email.mockImplementation(async () => {
+    fixture.sessions.transition(account);
+    return { user: account.user, token: account.session.token };
+  });
+  const completed = vi.fn();
+  const hook = renderHook(
+    () =>
+      fixture.client.useSignInForm({
+        initialValues: { email: "user@example.com", password: "secret" },
+        onAuthenticated: completed,
+      }),
+    { wrapper: fixture.wrapper },
+  );
+  await waitFor(() => expect(hook.result.current.actions.submit.isDisabled).toBe(false));
+  const linked = { outcome: "authenticated", userId: "user", sessionId: "session" };
+  await act(async () => {
+    expect(await hook.result.current.actions.submit.run()).toEqual({
+      status: "success",
+      data: { ...linked, guestUserId: "guest" },
+    });
+  });
+  expect(completed).toHaveBeenCalledWith({ ...linked, guestUserId: "guest" });
+  expect(hook.result.current.actions.submit.isDisabled).toBe(true);
+});
+
+it("makes a visitor a guest once and stays established while Convex authentication changes hands", async () => {
+  const fixture = guestFixture();
+  fixture.auth.signIn.anonymous.mockRejectedValueOnce(new TypeError("offline"));
+  fixture.auth.signIn.anonymous.mockImplementation(async () => {
+    fixture.sessions.transition(guest("guest"));
+    return { user: guest("guest").user, token: guest("guest").session.token };
+  });
+  const hook = renderHook(() => fixture.client.useGuestSession(), {
+    wrapper: fixture.wrapper,
+    reactStrictMode: true,
+  });
+  await waitFor(() => expect(hook.result.current.feedback).toHaveLength(1));
+  expect(fixture.auth.signIn.anonymous).toHaveBeenCalledOnce();
+  expect(hook.result.current.isEstablished).toBe(false);
+  await act(async () => {
+    expect(await hook.result.current.feedback[0]!.recovery!.run()).toEqual({
+      status: "success",
+      data: undefined,
+    });
+  });
+  expect(fixture.auth.signIn.anonymous).toHaveBeenCalledTimes(2);
+  expect(hook.result.current).toMatchObject({
+    userId: "guest",
+    isAnonymous: true,
+    isEstablished: true,
+    feedback: [],
+  });
+  convexAuthenticated = false;
+  hook.rerender();
+  expect(hook.result.current.isEstablished).toBe(true);
+  expect(fixture.auth.signIn.anonymous).toHaveBeenCalledTimes(2);
+});
+
+it("signs out to a fresh guest and recovers the guest sign-in without signing out twice", async () => {
+  const fixture = guestFixture(account);
+  fixture.auth.signOut.mockImplementation(async () => {
+    fixture.sessions.transition(null);
+    return { status: true };
+  });
+  fixture.auth.signIn.anonymous.mockRejectedValueOnce(new TypeError("offline"));
+  fixture.auth.signIn.anonymous.mockImplementation(async () => {
+    fixture.sessions.transition(guest("next-guest"));
+    return { user: guest("next-guest").user, token: guest("next-guest").session.token };
+  });
+  const completed = vi.fn();
+  const hook = renderHook(() => fixture.client.useSignOut({ onSignedOut: completed }), {
+    wrapper: fixture.wrapper,
+  });
+  await waitFor(() => expect(hook.result.current.actions.signOut.isDisabled).toBe(false));
+  await act(async () => {
+    expect(await hook.result.current.actions.signOut.run()).toMatchObject({
+      status: "error",
+      error: { phase: "cleanup", writeSucceeded: true },
+    });
+  });
+  await act(async () => {
+    expect(await hook.result.current.feedback[0]!.recovery!.run()).toEqual({
+      status: "success",
+      data: { outcome: "signedOut" },
+    });
+  });
+  expect(fixture.auth.signOut).toHaveBeenCalledOnce();
+  expect(fixture.auth.signIn.anonymous).toHaveBeenCalledTimes(2);
+  expect(completed).toHaveBeenCalledOnce();
+  // A guest signing out would lose what they made: that needs an account.
+  expect(hook.result.current.actions.signOut.disabledReason).toEqual({ code: "accountRequired" });
 });

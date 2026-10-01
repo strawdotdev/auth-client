@@ -1,5 +1,27 @@
 # Verification
 
+## v0.6.0 — 2026-10-01
+
+Better Auth's anonymous plugin is supported. A guest (`session.user.isAnonymous`) may use the
+sign-in and sign-up workflows; signing in from a guest's session is synchronized as a link rather
+than retired as an unrelated account, and its completion carries `guestUserId`. Organization,
+invitation, session and account workflows, reauthentication, and (with guests) sign-out report
+`accountRequired` to a guest; reads still run. The client-only `guests` capability signs a visitor
+with no session in anonymously from `AuthDataProvider`, latches the first authentication for
+`useGuestSession().isEstablished`, and returns a signed-out visitor to a fresh guest through the
+same single guest sign-in. `getAuthErrorCode` is exported. Breaking: `WorkflowDisabledReason`
+gains `accountRequired`, `WorkflowOperation` gains `signInAsGuest`, and anonymous users are no
+longer treated as signed-in accounts.
+
+- `pnpm check` and 98 controlled tests pass. The guest sign-in test fails on v0.5.1's
+  synchronization (reported `obsolete`) when the session refetch settles before it renders.
+- `pnpm test:package` and `pnpm test:git`: compiled and Git-package installations passed.
+- `pnpm test:e2e` against the example's local Convex backend and mailbox: all nine journeys passed
+  in 1.5 minutes, including the new guest journey (guest, sign-up, verification, linked sign-in,
+  sign-out to a fresh guest). The example backend now enables the anonymous plugin. A later
+  type-only change (`isAnonymous` may be `undefined`) was not rerun in the browser.
+- Not yet run in Gaia.
+
 ## v0.5.1 — 2026-09-29
 
 A resource's first freshness signal no longer cancels and restarts a read that is already in

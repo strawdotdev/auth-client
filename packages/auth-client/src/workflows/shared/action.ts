@@ -18,6 +18,13 @@ export const asRecord = (value: unknown): Values | undefined =>
   value !== null && typeof value === "object" ? (value as Values) : undefined;
 export const asRecords = (value: unknown): Values[] =>
   Array.isArray(value) ? value.map(asRecord).filter((row): row is Values => !!row) : [];
+/** Better Auth's error code (`INVALID_EMAIL_OR_PASSWORD`, ...) from a thrown or returned error. */
+export function getAuthErrorCode(cause: unknown): string | undefined {
+  const row = asRecord(cause);
+  if (!row) return;
+  if (typeof row.code === "string") return row.code;
+  return getAuthErrorCode(row.error) ?? getAuthErrorCode(row.body);
+}
 export const ignored = (
   reason: "disabled" | "busy" | "obsolete" | "unavailable",
 ): WorkflowOutcome<never> => ({ status: "ignored", reason });
@@ -134,9 +141,10 @@ export function actionControl(
   target: WorkflowPendingAction,
   conflicts: boolean,
   reason: WorkflowDisabledReason | null,
+  unavailableReason: WorkflowDisabledReason = { code: "disabled" },
 ) {
   const disabledReason = !available
-    ? { code: "disabled" as const }
+    ? unavailableReason
     : pending != null || conflicts
       ? { code: "busy" as const }
       : reason;
@@ -174,7 +182,12 @@ export function useWorkflowAction(
     suspension: 0,
     controllers: new Set<AbortController>(),
   });
-  const available = enabled && identity.ready && !disposed;
+  // Organization, invitation, session and account workflows need an account, not a guest.
+  const available = enabled && identity.ready && !identity.isAnonymous && !disposed;
+  const unavailableReason: WorkflowDisabledReason =
+    enabled && identity.ready && identity.isAnonymous && !disposed
+      ? { code: "accountRequired" }
+      : { code: "disabled" };
   const { reset: resetMutation, mutateAsync } = useMutation(
     {
       mutationFn: (write: () => Promise<unknown>) => write(),
@@ -312,6 +325,7 @@ export function useWorkflowAction(
       target,
       locks.conflicts(target, runtime.generation),
       reason,
+      unavailableReason,
     );
   }
   return {

@@ -6,6 +6,8 @@ export type Features = {
   sessions?: boolean;
   authentication?: boolean;
   account?: boolean;
+  /** Client-only: keep a Better Auth anonymous session for every visitor. */
+  guests?: boolean;
 };
 export type ResourceDependency = {
   scope: "directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation";

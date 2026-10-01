@@ -34,9 +34,9 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
-function fixture() {
+function fixture(user: { id: string; isAnonymous?: boolean } = { id: "user" }) {
   let identity = {
-    user: { id: "user" },
+    user,
     session: { id: "current", token: "private-current-token" },
   };
   const organizations = [
@@ -749,4 +749,28 @@ it("shares member locks across duplicates and never repeats a write after callba
   act(() => first.result.current.reset());
   expect(f.writes).toHaveLength(1);
   expect(onRoleUpdated).toHaveBeenCalledOnce();
+});
+
+it("keeps organization and session actions for accounts while a guest's reads still run", async () => {
+  const f = fixture({ id: "guest", isAnonymous: true });
+  const create = renderHook(
+    () =>
+      f.authData.useOrganizationCreateForm({
+        initialValues: initial({ name: "New", slug: "new" }),
+      }),
+    { wrapper: f.wrapper },
+  );
+  const sessions = renderHook(() => f.authData.useSessions(), { wrapper: f.wrapper });
+  await waitFor(() => expect(sessions.result.current.data).toHaveLength(2));
+  expect(create.result.current.actions.submit.disabledReason).toEqual({ code: "accountRequired" });
+  expect(sessions.result.current.actions.revokeOthers.disabledReason).toEqual({
+    code: "accountRequired",
+  });
+  await act(async () => {
+    expect(await create.result.current.actions.submit.run()).toEqual({
+      status: "ignored",
+      reason: "disabled",
+    });
+  });
+  expect(f.writes).toHaveLength(0);
 });

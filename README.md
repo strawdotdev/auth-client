@@ -28,7 +28,7 @@ export const authData = createAuthDataClient({
 <AuthDataProvider client={authData}>{children}</AuthDataProvider>;
 ```
 
-Enable `organizationClient()` on the original client for organization capabilities. Keep that client, the official authentication provider, and application foreground/network refresh wiring. Do not add another QueryClient or authentication layer.
+Enable `organizationClient()` on the original client for organization capabilities. For guests, enable `anonymousClient()` and see [Guests](#guests). Keep that client, the official authentication provider, and application foreground/network refresh wiring. Do not add another QueryClient or authentication layer.
 
 ## Workflow roots and hooks
 
@@ -56,7 +56,7 @@ Each root adds no markup and owns one workflow. Its context hook reads that inst
 | ReauthenticationForm     | useReauthenticationFormContext     | useReauthenticationForm     |
 | SignOut                  | useSignOutContext                  | useSignOut                  |
 
-All are properties of the configured `authData` client. Scope, identity changes, and genuine departure retire private state and unfinished callbacks.
+All are properties of the configured `authData` client. Scope, identity changes, and genuine departure retire private state and unfinished callbacks. With `guests: true`, the client also has `useGuestSession()` (no root: it reads the client's one guest session).
 
 ```tsx
 function InvitationPage({ invitationId }) {
@@ -183,6 +183,8 @@ function Feedback({ entries }) {
 
 Optional `onError` presents operation errors through application-owned notifications without wrapping each action promise. Ordinary form/read errors can remain inline. This private cache does not feed a consumer's global TanStack mutation-error host; avoid presenting the same failure both inline and as a toast unintentionally.
 
+`getAuthErrorCode(error)` returns Better Auth's code (`INVALID_EMAIL_OR_PASSWORD`, `EMAIL_NOT_VERIFIED`, ...) from feedback errors, whether thrown or nested in a fetch error; map it to localized copy.
+
 Actions return `WorkflowOutcome` for advanced callers. Diagnostic causes, phases, and write-success information remain available under `diagnostics`; ordinary controls should not inspect them to sequence work.
 
 ## Stable ownership and application policy
@@ -200,6 +202,34 @@ Identity workflows observe the configured Better Auth session hook and official 
 `account: true` requires one typed current-user binding backed by the application's existing reactive, identity-checked user query. Profile drafts adopt remote changes while pristine and preserve local edits while dirty. Profile completion waits for the authoritative projection. The binding is consumed directly—its data is neither mirrored nor stored in TanStack Query.
 
 Members expose the visible page and pagination metadata, not their internal fetched prefix. The HTTP transport requests progressively larger ordered prefixes; it is not efficient cursor pagination. See [pagination limits](docs/pagination.md). Session-list responses remain bounded and authoritative; the current session is separate rather than inserted into that list.
+
+## Guests
+
+Better Auth's [anonymous plugin](https://www.better-auth.com/docs/plugins/anonymous) gives a visitor a session before they have an account. The adapter recognizes such a user from `session.user.isAnonymous` whether or not the app keeps guests:
+
+- A guest is someone who may sign in or up: `SignInForm` and `SignUpForm` are available with no user or an anonymous one. Signing in from a guest's session is a link, not an unrelated account: completion carries `guestUserId`, the guest that Better Auth linked (its `onLinkAccount` runs on the backend).
+- Everything else needs an account. Organization, invitation, session and account workflows (profile included), reauthentication and, with `guests: true`, sign-out report `disabledReason: { code: "accountRequired" }` to a guest. Their reads still run and come back empty.
+- With email verification required, sign-up returns no session and links nothing; verification signs no one in. The guest is linked when they sign in from the same browser afterwards.
+
+`features: { authentication: true, guests: true }` (client-only; it needs `anonymousClient()`) is for an app where every visitor plays at once as a guest:
+
+- `AuthDataProvider` signs a visitor with no session in anonymously, once, and records when the first authentication is reached.
+- Signing out (and `PasswordResetForm`'s `signOutAfterReset`) leaves a fresh guest; recovery retries the guest sign-in without signing out again. A guest resetting an account's password keeps their own session.
+- `useGuestSession()` returns `userId`, `isAnonymous`, `isEstablished` and the usual `feedback`/`isPending`. `isEstablished` turns true at the first authentication and never false again: gate the first paint on it, never on Convex's `isAuthenticated`, which turns false for a moment whenever a token changes hands. A failed guest sign-in is feedback whose `recovery` retries it.
+
+```tsx
+function Game() {
+  const guest = authData.useGuestSession();
+  if (!guest.isEstablished) return <Curtain feedback={guest.feedback} />;
+  return <World account={!guest.isAnonymous} />; // stays mounted through sign-in and sign-out
+}
+```
+
+Host `SignInForm`, `SignUpForm` and `SignOut` roots above any guest/account switch so their completion survives the identity change (`examples/expo/app/guest.tsx`). Keep an auth error boundary keyed by session (such as the integration's `AuthBoundary`) beside the app rather than around it, or every sign-in remounts the app.
+
+On the backend, use `anonymous({ disableDeleteAnonymousUser: true, onLinkAccount })`. By default the guest's user and sessions are deleted inside the sign-in request, while the page still holds the guest's session; its refresh then clears the new session too. Move the guest's application data in `onLinkAccount` and delete the linked guest later (a scheduled mutation). Guests should not get application side effects meant for accounts, such as a personal organization (`allowUserToCreateOrganization: (user) => !user.isAnonymous`).
+
+Turn `guests` on only in an app built around guests. An app with sign-in pages and signed-out routes keeps it off: its guards expect a visitor with no session. In Gaia, only the World Game turns it on; the main app never does.
 
 ## Low-level reads and methods
 
@@ -232,7 +262,7 @@ Use the official Better Auth **local component installation** with organization 
 6. Export `createSignalQueries({ features, lookup, getAuthUser, requireVerifiedInvitationEmail }).signals` as an authenticated public app query. `getAuthUser` delegates to your official auth component.
 7. Pass the generated `api.authData` reference to the adapter.
 
-Use the same backend-backed `organization` and `sessions` flags on both sides. `authentication` and `account` are client-only workflow capabilities. Protocol/capability mismatches surface as synchronization errors. Supply the **effective** invitation verification requirement from your auth configuration; it is required rather than guessed. In the example a shared `true` constant configures both Better Auth and the bridge. Account for Better Auth's generated/custom-ID defaults if your policy is implicit.
+Use the same backend-backed `organization` and `sessions` flags on both sides. `authentication`, `account` and `guests` are client-only workflow capabilities. Protocol/capability mismatches surface as synchronization errors. Supply the **effective** invitation verification requirement from your auth configuration; it is required rather than guessed. In the example a shared `true` constant configures both Better Auth and the bridge. Account for Better Auth's generated/custom-ID defaults if your policy is implicit.
 
 The example sets `advanced.database.generateId: false` so Convex allocates database IDs. Its indexes include session expiry and invitation lookup indexes. Schema generation remains application-owned; regenerate after changing auth plugins/options.
 
@@ -261,7 +291,7 @@ The workflows replace supported-domain form state, action readiness, conflict gu
 Install the precompiled release:
 
 ```sh
-pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.5.1'
+pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.6.0'
 ```
 
 Release tags contain the ready-to-use package at the repository root: JavaScript, declarations, and source maps. Installation does not compile this library, install its development tooling, or require permission to run its build scripts. The application still bundles normally and supplies the documented peer dependencies and authentication/backend configuration.
