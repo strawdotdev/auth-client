@@ -182,4 +182,13 @@ export type AuthDataClientConfig<
   features: F & (F extends { guests: true } ? { authentication: true } : unknown);
 } & (F extends { account: true }
   ? { currentUser: CurrentUserBinding<U> }
-  : { currentUser?: never });
+  : { currentUser?: never }) & {
+    /**
+     * With `guests`: whether this device holds a session at all, such as
+     * `() => authClient.getCookie().includes("session_token")` with Convex's `crossDomainClient()`
+     * or Better Auth's `expoClient()`. When it returns `false`, a visitor becomes a guest at once
+     * instead of after Better Auth's first session read, which could only come back empty.
+     * Without it, the guest sign-in waits for that read.
+     */
+    hasStoredSession?: () => boolean;
+  };

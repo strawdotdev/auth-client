@@ -15,7 +15,11 @@ const guestSessions = new WeakMap<CacheRuntime, GuestSession>();
 /** The runtime's guest session, when the client was created with `guests: true`. */
 export const guestSession = (runtime: CacheRuntime) => guestSessions.get(runtime);
 
-function createGuestStore(auth: GuestClient, runtime: CacheRuntime) {
+function createGuestStore(
+  auth: GuestClient,
+  runtime: CacheRuntime,
+  hasStoredSession?: () => boolean,
+) {
   const listeners = new Set<() => void>();
   let attempt: Promise<void> | undefined;
   let error: WorkflowError | null = null;
@@ -45,6 +49,14 @@ function createGuestStore(auth: GuestClient, runtime: CacheRuntime) {
       if (established) return;
       established = true;
       changed();
+    },
+    /** The device holds no session, so Better Auth's session read can only come back empty. */
+    holdsNoSession() {
+      try {
+        return hasStoredSession?.() === false;
+      } catch {
+        return false;
+      }
     },
     /** One anonymous sign-in at a time, shared by the provider and sign-out. */
     ensure() {
@@ -92,14 +104,20 @@ export function useGuestSessionLifecycle(
   useLayoutEffect(() => {
     if (!guest || runtime.disposed) return;
     if (ready) guest.establish();
-    // A failed attempt waits for its explicit retry rather than looping.
-    if (!pending && !userId && !failed) void guest.ensure().catch(() => {});
+    // A failed attempt waits for its explicit retry rather than looping. Without a stored
+    // session, the sign-in need not wait for a session read that can only come back empty.
+    if (!userId && !failed && (!pending || guest.holdsNoSession()))
+      void guest.ensure().catch(() => {});
   }, [guest, runtime, userId, ready, pending, failed]);
 }
 const idle = () => () => {};
 
-export function createGuestSession(auth: GuestClient, runtime: CacheRuntime) {
-  const guest = createGuestStore(auth, runtime);
+export function createGuestSession(
+  auth: GuestClient,
+  runtime: CacheRuntime,
+  hasStoredSession?: () => boolean,
+) {
+  const guest = createGuestStore(auth, runtime, hasStoredSession);
   guestSessions.set(runtime, guest);
   function useGuestSession(): GuestSessionState {
     const { disposed } = useClientBoundary(runtime);

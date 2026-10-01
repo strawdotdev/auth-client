@@ -11,6 +11,8 @@ export declare const guestSession: (runtime: CacheRuntime) => {
     readonly established: boolean;
     /** The first authentication was reached: from now on the app stays through identity changes. */
     establish(): void;
+    /** The device holds no session, so Better Auth's session read can only come back empty. */
+    holdsNoSession(): boolean;
     /** One anonymous sign-in at a time, shared by the provider and sign-out. */
     ensure(): Promise<void>;
 } | undefined;
@@ -20,7 +22,7 @@ export declare function useGuestSessionLifecycle(runtime: CacheRuntime, identity
     ready: boolean;
     pending: boolean;
 }): void;
-export declare function createGuestSession(auth: GuestClient, runtime: CacheRuntime): {
+export declare function createGuestSession(auth: GuestClient, runtime: CacheRuntime, hasStoredSession?: () => boolean): {
     useGuestSession: () => GuestSessionState;
 };
 //# sourceMappingURL=guest.d.ts.map

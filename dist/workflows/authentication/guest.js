@@ -5,7 +5,7 @@ const target = { operation: "signInAsGuest" };
 const guestSessions = new WeakMap();
 /** The runtime's guest session, when the client was created with `guests: true`. */
 export const guestSession = (runtime) => guestSessions.get(runtime);
-function createGuestStore(auth, runtime) {
+function createGuestStore(auth, runtime, hasStoredSession) {
     const listeners = new Set();
     let attempt;
     let error = null;
@@ -37,6 +37,15 @@ function createGuestStore(auth, runtime) {
                 return;
             established = true;
             changed();
+        },
+        /** The device holds no session, so Better Auth's session read can only come back empty. */
+        holdsNoSession() {
+            try {
+                return hasStoredSession?.() === false;
+            }
+            catch {
+                return false;
+            }
         },
         /** One anonymous sign-in at a time, shared by the provider and sign-out. */
         ensure() {
@@ -82,14 +91,15 @@ export function useGuestSessionLifecycle(runtime, identity) {
             return;
         if (ready)
             guest.establish();
-        // A failed attempt waits for its explicit retry rather than looping.
-        if (!pending && !userId && !failed)
+        // A failed attempt waits for its explicit retry rather than looping. Without a stored
+        // session, the sign-in need not wait for a session read that can only come back empty.
+        if (!userId && !failed && (!pending || guest.holdsNoSession()))
             void guest.ensure().catch(() => { });
     }, [guest, runtime, userId, ready, pending, failed]);
 }
 const idle = () => () => { };
-export function createGuestSession(auth, runtime) {
-    const guest = createGuestStore(auth, runtime);
+export function createGuestSession(auth, runtime, hasStoredSession) {
+    const guest = createGuestStore(auth, runtime, hasStoredSession);
     guestSessions.set(runtime, guest);
     function useGuestSession() {
         const { disposed } = useClientBoundary(runtime);
