@@ -159,11 +159,19 @@ function isAvailable(runtime, availability, enabled, disposed, view) {
         return false;
     if (availability === "settled")
         return true;
+    // A guest (Better Auth anonymous user) signs in or up from their session and is linked.
     if (availability === "guest")
-        return !observation.userId;
+        return !observation.userId || observation.isAnonymous;
+    if (guestRequiresAccount(runtime, availability))
+        return false;
     if (availability === "session")
         return Boolean(observation.userId && observation.sessionId);
     return observation.ready;
+}
+/** Reauthentication needs an account; so does signing out when the app keeps guests. */
+function guestRequiresAccount(runtime, availability) {
+    return (runtime.authObservation.isAnonymous &&
+        (availability === "authenticated" || (availability === "session" && !!runtime.features.guests)));
 }
 function viewHasRecovery(view) {
     if (!view)
@@ -278,6 +286,9 @@ export function useIdentityAction(runtime, scope, availability, enabled = true, 
     const view = store.view(scope);
     const owner = useIdentityOwner(runtime, scope, store, lifecycleOptions.onRetire);
     const available = isAvailable(runtime, availability, enabled, disposed, view);
+    const unavailableReason = guestRequiresAccount(runtime, availability)
+        ? { code: "accountRequired" }
+        : { code: "disabled" };
     const current = () => !runtime.disposed;
     const busy = () => store.view(scope)?.pending != null;
     function reset() {
@@ -295,7 +306,7 @@ export function useIdentityAction(runtime, scope, availability, enabled = true, 
     }, target, work, alreadyWritten);
     function control(target, reason = null) {
         const visible = store.view(scope);
-        return actionControl(available, visible?.pending, target, locks.conflicts(target, runtime.generation), reason);
+        return actionControl(available, visible?.pending, target, locks.conflicts(target, runtime.generation), reason, unavailableReason);
     }
     return {
         control,

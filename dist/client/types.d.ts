@@ -3,7 +3,7 @@ export type { Features, ResourceDependency, InvalidationSnapshot, InvalidationAp
 import type { InvitationSurface } from "../workflows/invitations/types.js";
 import type { OrganizationWorkflows } from "../workflows/organizations/types.js";
 import type { SessionWorkflows } from "../workflows/sessions/types.js";
-import type { AuthenticationWorkflows } from "../workflows/authentication/types.js";
+import type { AuthenticationWorkflows, GuestSessionWorkflow } from "../workflows/authentication/types.js";
 import type { AccountWorkflows, CurrentUserBinding } from "../workflows/account/types.js";
 export type Endpoint = (...args: any[]) => Promise<unknown>;
 export interface SessionClient {
@@ -12,6 +12,7 @@ export interface SessionClient {
             user: {
                 id: string;
                 email?: string;
+                isAnonymous?: boolean | null | undefined;
             };
             session: {
                 id: string;
@@ -33,6 +34,12 @@ export type AuthenticationClient = SessionClient & {
     resetPassword: Endpoint;
     sendVerificationEmail: Endpoint;
     signOut: Endpoint;
+};
+/** Better Auth's `anonymousClient()` adds `signIn.anonymous`. */
+export type GuestClient = AuthenticationClient & {
+    signIn: {
+        anonymous: Endpoint;
+    };
 };
 export type AccountClient = AuthenticationClient & SessionsClient & {
     updateUser: Endpoint;
@@ -124,7 +131,9 @@ export type AuthDataClient<C extends SessionClient, F extends Features, U extend
     authentication: true;
 } ? AuthenticationWorkflows<C extends AuthenticationClient ? C : never> : unknown) & (F extends {
     account: true;
-} ? AccountWorkflows<C extends AccountClient ? C : never, U> : unknown);
+} ? AccountWorkflows<C extends AccountClient ? C : never, U> : unknown) & (F extends {
+    guests: true;
+} ? GuestSessionWorkflow : unknown);
 export type AuthDataClientConfig<C extends SessionClient, F extends Features, U extends {
     email: string;
 }> = {
@@ -136,9 +145,16 @@ export type AuthDataClientConfig<C extends SessionClient, F extends Features, U 
         authentication: true;
     } ? AuthenticationClient : unknown) & (F extends {
         account: true;
-    } ? AccountClient : unknown);
+    } ? AccountClient : unknown) & (F extends {
+        guests: true;
+    } ? GuestClient : unknown);
     api: InvalidationApi;
-    features: F;
+    /** `guests` needs `authentication`: signing out returns the visitor to a guest. */
+    features: F & (F extends {
+        guests: true;
+    } ? {
+        authentication: true;
+    } : unknown);
 } & (F extends {
     account: true;
 } ? {

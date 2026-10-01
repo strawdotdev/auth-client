@@ -13,8 +13,9 @@ export type WorkflowOutcome<T> = {
     status: "ignored";
     reason: "disabled" | "busy" | "obsolete" | "unavailable";
 };
+/** `accountRequired`: the session is a guest's (Better Auth anonymous user), not an account's. */
 export type WorkflowDisabledReason = {
-    code: "disabled" | "busy" | "unavailable" | "recovery";
+    code: "disabled" | "busy" | "unavailable" | "recovery" | "accountRequired";
 } | {
     code: "policy";
     policyCode: string;
@@ -34,7 +35,7 @@ export type WorkflowFeedback = {
 export type WorkflowFeedbackOptions = {
     onError?: (feedback: Omit<WorkflowFeedback, "recovery">) => void;
 };
-export type WorkflowOperation = "select" | "create" | "update" | "leave" | "delete" | "invite" | "resend" | "accept" | "reject" | "cancel" | "updateMemberRole" | "removeMember" | "revokeSession" | "revokeOtherSessions" | "revokeSessions" | "signIn" | "signUp" | "requestPasswordReset" | "resetPassword" | "sendVerificationEmail" | "updateProfile" | "updateProfileImage" | "changeEmail" | "changePassword" | "reauthenticate" | "signOut";
+export type WorkflowOperation = "select" | "create" | "update" | "leave" | "delete" | "invite" | "resend" | "accept" | "reject" | "cancel" | "updateMemberRole" | "removeMember" | "revokeSession" | "revokeOtherSessions" | "revokeSessions" | "signIn" | "signUp" | "requestPasswordReset" | "resetPassword" | "sendVerificationEmail" | "updateProfile" | "updateProfileImage" | "changeEmail" | "changePassword" | "reauthenticate" | "signOut" | "signInAsGuest";
 export type WorkflowPendingAction = {
     operation: WorkflowOperation;
     organizationId?: string;

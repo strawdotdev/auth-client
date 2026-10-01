@@ -7,8 +7,9 @@ export type WorkflowOutcome<T> =
   | { status: "success"; data: T }
   | { status: "error"; error: WorkflowError }
   | { status: "ignored"; reason: "disabled" | "busy" | "obsolete" | "unavailable" };
+/** `accountRequired`: the session is a guest's (Better Auth anonymous user), not an account's. */
 export type WorkflowDisabledReason =
-  | { code: "disabled" | "busy" | "unavailable" | "recovery" }
+  | { code: "disabled" | "busy" | "unavailable" | "recovery" | "accountRequired" }
   | { code: "policy"; policyCode: string };
 export type WorkflowAction<Args extends unknown[] = [], Result = unknown> = {
   run(this: void, ...args: Args): Promise<WorkflowOutcome<Result>>;
@@ -51,7 +52,8 @@ export type WorkflowOperation =
   | "changeEmail"
   | "changePassword"
   | "reauthenticate"
-  | "signOut";
+  | "signOut"
+  | "signInAsGuest";
 export type WorkflowPendingAction = {
   operation: WorkflowOperation;
   organizationId?: string;

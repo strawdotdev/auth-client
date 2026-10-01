@@ -30,6 +30,7 @@ export class CacheRuntime {
     attached = 0;
     attachmentRevision = 0;
     authObservation = {
+        isAnonymous: false,
         ready: false,
         sessionPending: true,
         convexAuthenticated: false,

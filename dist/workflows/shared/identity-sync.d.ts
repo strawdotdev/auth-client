@@ -7,7 +7,11 @@ export type ExpectedIdentity = {
 };
 export declare function resultIdentity(result: unknown): ExpectedIdentity;
 export declare const textValue: (value: unknown) => string;
-export declare function synchronizeAuthenticated(runtime: CacheRuntime, transaction: ActionExecution, expected: ExpectedIdentity, previousToken?: string): Promise<{
+/**
+ * Waits for the expected session. `previous` is the identity being left: its session may still be
+ * observed for a moment (a guest signing in is linked, not replaced by an unrelated account).
+ */
+export declare function synchronizeAuthenticated(runtime: CacheRuntime, transaction: ActionExecution, expected: ExpectedIdentity, previous?: ExpectedIdentity): Promise<{
     userId: string;
     sessionId: string;
 }>;

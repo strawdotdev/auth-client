@@ -15,15 +15,18 @@ import type {
   WorkflowForm,
 } from "../shared/types.js";
 
+export type AuthenticatedCompletion = {
+  outcome: "authenticated";
+  userId: string;
+  sessionId: string;
+  /** The guest (Better Auth anonymous user) this sign-in or sign-up was linked from. */
+  guestUserId?: string;
+};
 export type SignInValues<C extends AuthenticationClient> = EndpointValues<
   Parameters<C["signIn"]["email"]>[0]
 >;
 export type SignInCompletion<_C extends AuthenticationClient> =
-  | {
-      outcome: "authenticated";
-      userId: string;
-      sessionId: string;
-    }
+  | AuthenticatedCompletion
   | { outcome: "verificationRequired"; email: string };
 export type SignInFormOptions<C extends AuthenticationClient> = WorkflowFormOptions<
   SignInValues<C>
@@ -41,11 +44,7 @@ export type SignUpValues<C extends AuthenticationClient> = EndpointValues<
   "callbackURL"
 >;
 export type SignUpCompletion<_C extends AuthenticationClient> =
-  | {
-      outcome: "authenticated";
-      userId: string;
-      sessionId: string;
-    }
+  | AuthenticatedCompletion
   | {
       outcome: "verificationRequired";
       email: string;
@@ -121,6 +120,18 @@ export type SignOutState<_C extends AuthenticationClient> = WorkflowActionState 
   actions: {
     signOut: WorkflowAction<[], { outcome: "signedOut" }>;
   };
+};
+
+/** `useGuestSession()`, with `guests: true`: every visitor holds a session, a guest's at first. */
+export type GuestSessionState = WorkflowActionState & {
+  userId: string | undefined;
+  /** The session is a guest's (Better Auth anonymous user), not an account's. */
+  isAnonymous: boolean;
+  /** The first authentication was reached; never false again, through any identity change. */
+  isEstablished: boolean;
+};
+export type GuestSessionWorkflow = {
+  useGuestSession(): GuestSessionState;
 };
 
 type SchemaOptions<Base, S extends z.ZodType> = Omit<Base, "schema" | "initialValues"> & {

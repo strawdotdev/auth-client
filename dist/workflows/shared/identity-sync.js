@@ -13,17 +13,22 @@ export function resultIdentity(result) {
     };
 }
 export const textValue = (value) => (typeof value === "string" ? value : "");
-export async function synchronizeAuthenticated(runtime, transaction, expected, previousToken) {
+/**
+ * Waits for the expected session. `previous` is the identity being left: its session may still be
+ * observed for a moment (a guest signing in is linked, not replaced by an unrelated account).
+ */
+export async function synchronizeAuthenticated(runtime, transaction, expected, previous = {}) {
     transaction.phase("synchronization");
     await runtime.refreshSession();
     await runtime.waitForAuth((state) => state.ready &&
         (!expected.userId || state.userId === expected.userId) &&
         (!expected.token || state.sessionToken === expected.token), transaction.signal, 10_000, (state) => state.userId &&
+        state.userId !== previous.userId &&
         ((expected.userId && state.userId !== expected.userId) ||
             (expected.token &&
                 state.sessionToken &&
                 state.sessionToken !== expected.token &&
-                state.sessionToken !== previousToken))
+                state.sessionToken !== previous.token))
         ? identityOperationObsolete
         : undefined);
     const { userId, sessionId } = runtime.authObservation;

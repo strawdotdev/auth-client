@@ -20,11 +20,15 @@ export function resultIdentity(result: unknown): ExpectedIdentity {
 
 export const textValue = (value: unknown) => (typeof value === "string" ? value : "");
 
+/**
+ * Waits for the expected session. `previous` is the identity being left: its session may still be
+ * observed for a moment (a guest signing in is linked, not replaced by an unrelated account).
+ */
 export async function synchronizeAuthenticated(
   runtime: CacheRuntime,
   transaction: ActionExecution,
   expected: ExpectedIdentity,
-  previousToken?: string,
+  previous: ExpectedIdentity = {},
 ) {
   transaction.phase("synchronization");
   await runtime.refreshSession();
@@ -37,11 +41,12 @@ export async function synchronizeAuthenticated(
     10_000,
     (state) =>
       state.userId &&
+      state.userId !== previous.userId &&
       ((expected.userId && state.userId !== expected.userId) ||
         (expected.token &&
           state.sessionToken &&
           state.sessionToken !== expected.token &&
-          state.sessionToken !== previousToken))
+          state.sessionToken !== previous.token))
         ? identityOperationObsolete
         : undefined,
   );

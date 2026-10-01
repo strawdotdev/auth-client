@@ -1,9 +1,11 @@
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import type { ConvexReactClient } from "convex/react";
 import type { SessionClient, InvalidationApi, Features, ResourceDependency } from "../client/types.js";
+/** `isAnonymous` marks a Better Auth anonymous-plugin user: a guest with a session but no account. */
 export type Identity = {
     userId?: string;
     sessionId?: string;
+    isAnonymous: boolean;
     ready: boolean;
 };
 export type AuthObservation = Identity & {

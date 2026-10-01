@@ -3,6 +3,8 @@ import type { WorkflowError, WorkflowOutcome, WorkflowPendingAction, PolicyDecis
 export type Values = Record<string, unknown>;
 export declare const asRecord: (value: unknown) => Values | undefined;
 export declare const asRecords: (value: unknown) => Values[];
+/** Better Auth's error code (`INVALID_EMAIL_OR_PASSWORD`, ...) from a thrown or returned error. */
+export declare function getAuthErrorCode(cause: unknown): string | undefined;
 export declare const ignored: (reason: "disabled" | "busy" | "obsolete" | "unavailable") => WorkflowOutcome<never>;
 declare const handledFailure: unique symbol;
 type HandledFailure = {
@@ -63,7 +65,7 @@ type OperationState = {
     target?: WorkflowPendingAction;
 };
 export declare function operationFeedback(state: OperationState | undefined, recoveries: WorkflowFeedback[]): WorkflowFeedback[];
-export declare function actionControl(available: boolean, pending: WorkflowPendingAction | null | undefined, target: WorkflowPendingAction, conflicts: boolean, reason: WorkflowDisabledReason | null): {
+export declare function actionControl(available: boolean, pending: WorkflowPendingAction | null | undefined, target: WorkflowPendingAction, conflicts: boolean, reason: WorkflowDisabledReason | null, unavailableReason?: WorkflowDisabledReason): {
     isDisabled: boolean;
     isPending: boolean;
     disabledReason: WorkflowDisabledReason | null;

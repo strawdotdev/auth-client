@@ -6,6 +6,7 @@ import { createOrganizationWorkflows, } from "../workflows/organizations/workflo
 import { createSessionWorkflows } from "../workflows/sessions/workflows.js";
 import { createAuthenticationWorkflows } from "../workflows/authentication/workflows.js";
 import { createAccountWorkflows } from "../workflows/account/workflows.js";
+import { createGuestSession } from "../workflows/authentication/guest.js";
 export function createAuthDataClient(config) {
     const runtime = new CacheRuntime(config.authClient, config.api, Object.freeze({ ...config.features }));
     const client = {
@@ -67,6 +68,11 @@ export function createAuthDataClient(config) {
         Object.assign(client, createInvitationWorkflows(client, runtime), createOrganizationWorkflows(client, runtime));
     if (config.features.sessions)
         Object.assign(client, createSessionWorkflows(client, runtime));
+    if (config.features.guests) {
+        if (!config.features.authentication)
+            throw new Error("The guests capability requires the authentication capability");
+        Object.assign(client, createGuestSession(auth, runtime));
+    }
     if (config.features.authentication)
         Object.assign(client, createAuthenticationWorkflows(auth, runtime));
     if (config.features.account)

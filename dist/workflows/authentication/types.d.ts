@@ -3,12 +3,15 @@ import type { AuthenticationClient } from "../../client/types.js";
 import type { WorkflowDefinition } from "../shared/root.js";
 import type { EndpointValues, WorkflowCallback, WorkflowFormOptions, WorkflowFormSchema, WorkflowRootComponent } from "../shared/type-contracts.js";
 import type { WorkflowAction, WorkflowActionState, WorkflowFeedbackOptions, WorkflowForm } from "../shared/types.js";
-export type SignInValues<C extends AuthenticationClient> = EndpointValues<Parameters<C["signIn"]["email"]>[0]>;
-export type SignInCompletion<_C extends AuthenticationClient> = {
+export type AuthenticatedCompletion = {
     outcome: "authenticated";
     userId: string;
     sessionId: string;
-} | {
+    /** The guest (Better Auth anonymous user) this sign-in or sign-up was linked from. */
+    guestUserId?: string;
+};
+export type SignInValues<C extends AuthenticationClient> = EndpointValues<Parameters<C["signIn"]["email"]>[0]>;
+export type SignInCompletion<_C extends AuthenticationClient> = AuthenticatedCompletion | {
     outcome: "verificationRequired";
     email: string;
 };
@@ -23,11 +26,7 @@ export type SignInFormOptions<C extends AuthenticationClient> = WorkflowFormOpti
     }>>;
 };
 export type SignUpValues<C extends AuthenticationClient> = EndpointValues<Parameters<C["signUp"]["email"]>[0], "callbackURL">;
-export type SignUpCompletion<_C extends AuthenticationClient> = {
-    outcome: "authenticated";
-    userId: string;
-    sessionId: string;
-} | {
+export type SignUpCompletion<_C extends AuthenticationClient> = AuthenticatedCompletion | {
     outcome: "verificationRequired";
     email: string;
 };
@@ -87,6 +86,17 @@ export type SignOutState<_C extends AuthenticationClient> = WorkflowActionState 
             outcome: "signedOut";
         }>;
     };
+};
+/** `useGuestSession()`, with `guests: true`: every visitor holds a session, a guest's at first. */
+export type GuestSessionState = WorkflowActionState & {
+    userId: string | undefined;
+    /** The session is a guest's (Better Auth anonymous user), not an account's. */
+    isAnonymous: boolean;
+    /** The first authentication was reached; never false again, through any identity change. */
+    isEstablished: boolean;
+};
+export type GuestSessionWorkflow = {
+    useGuestSession(): GuestSessionState;
 };
 type SchemaOptions<Base, S extends z.ZodType> = Omit<Base, "schema" | "initialValues"> & {
     schema: S;

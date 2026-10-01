@@ -6,6 +6,7 @@ import type {
   AuthDataClient,
   AuthDataClientConfig,
   Endpoint,
+  GuestClient,
 } from "./types.js";
 import { CacheRuntime } from "../cache/query-cache.js";
 import { useCachedResource } from "../cache/use-cached-resource.js";
@@ -21,6 +22,7 @@ import {
 import { createSessionWorkflows, type SessionReads } from "../workflows/sessions/workflows.js";
 import { createAuthenticationWorkflows } from "../workflows/authentication/workflows.js";
 import { createAccountWorkflows } from "../workflows/account/workflows.js";
+import { createGuestSession } from "../workflows/authentication/guest.js";
 export function createAuthDataClient<
   C extends SessionClient,
   F extends Features,
@@ -35,10 +37,10 @@ export function createAuthDataClient<
     refresh: () => runtime.refresh(),
     dispose: () => runtime.dispose(),
   };
-  const auth = config.authClient as C &
+  const auth = config.authClient as unknown as C &
     OrganizationClient &
     SessionsClient &
-    import("./types.js").AuthenticationClient &
+    GuestClient &
     import("./types.js").AccountClient;
   function write(fn: Endpoint, endpoints: readonly string[]) {
     return async (...args: unknown[]) => {
@@ -101,6 +103,11 @@ export function createAuthDataClient<
     );
   if (config.features.sessions)
     Object.assign(client, createSessionWorkflows(client as unknown as SessionReads, runtime));
+  if (config.features.guests) {
+    if (!config.features.authentication)
+      throw new Error("The guests capability requires the authentication capability");
+    Object.assign(client, createGuestSession(auth, runtime));
+  }
   if (config.features.authentication)
     Object.assign(client, createAuthenticationWorkflows(auth, runtime));
   if (config.features.account)

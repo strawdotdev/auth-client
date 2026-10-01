@@ -359,12 +359,9 @@ export function createAccountWorkflows<U extends { email: string }>(
       const current = reauthenticationReceipts.get(scope);
       requireAvailable(current);
       if (current.stage === "synchronization") {
-        await synchronizeAuthenticated(
-          runtime,
-          transaction,
-          current.expected,
-          current.displacedToken,
-        );
+        await synchronizeAuthenticated(runtime, transaction, current.expected, {
+          token: current.displacedToken,
+        });
         if (runtime.authObservation.userId !== current.originalUserId)
           throw new Error("Reauthentication changed the authenticated user");
         const { userId, sessionId } = runtime.authObservation;

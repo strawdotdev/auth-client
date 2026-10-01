@@ -4,6 +4,15 @@ import { useMutation } from "@tanstack/react-query";
 import { useClientBoundary } from "../../client/provider-context.js";
 export const asRecord = (value) => value !== null && typeof value === "object" ? value : undefined;
 export const asRecords = (value) => Array.isArray(value) ? value.map(asRecord).filter((row) => !!row) : [];
+/** Better Auth's error code (`INVALID_EMAIL_OR_PASSWORD`, ...) from a thrown or returned error. */
+export function getAuthErrorCode(cause) {
+    const row = asRecord(cause);
+    if (!row)
+        return;
+    if (typeof row.code === "string")
+        return row.code;
+    return getAuthErrorCode(row.error) ?? getAuthErrorCode(row.body);
+}
 export const ignored = (reason) => ({ status: "ignored", reason });
 const conflict = Symbol("workflow conflict");
 const unavailable = Symbol("workflow unavailable");
@@ -57,9 +66,9 @@ export function operationFeedback(state, recoveries) {
         ? recoveries
         : [...recoveries, { target, error: error.cause, diagnostics: error, recovery: null }];
 }
-export function actionControl(available, pending, target, conflicts, reason) {
+export function actionControl(available, pending, target, conflicts, reason, unavailableReason = { code: "disabled" }) {
     const disabledReason = !available
-        ? { code: "disabled" }
+        ? unavailableReason
         : pending != null || conflicts
             ? { code: "busy" }
             : reason;
@@ -89,7 +98,11 @@ export function useWorkflowAction(runtime, scope, enabled = true, options = {}) 
         suspension: 0,
         controllers: new Set(),
     });
-    const available = enabled && identity.ready && !disposed;
+    // Organization, invitation, session and account workflows need an account, not a guest.
+    const available = enabled && identity.ready && !identity.isAnonymous && !disposed;
+    const unavailableReason = enabled && identity.ready && identity.isAnonymous && !disposed
+        ? { code: "accountRequired" }
+        : { code: "disabled" };
     const { reset: resetMutation, mutateAsync } = useMutation({
         mutationFn: (write) => write(),
         retry: false,
@@ -226,7 +239,7 @@ export function useWorkflowAction(runtime, scope, enabled = true, options = {}) 
     }
     const visible = available && feedback?.owner === owner ? feedback : undefined;
     function control(target, reason = null) {
-        return actionControl(available, visible?.pending, target, locks.conflicts(target, runtime.generation), reason);
+        return actionControl(available, visible?.pending, target, locks.conflicts(target, runtime.generation), reason, unavailableReason);
     }
     return {
         control,
