@@ -1,6 +1,6 @@
 {
   "name": "@strawdev/auth-client",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Headless Better Auth workflows with reactive Convex freshness",
   "homepage": "https://github.com/strawdotdev/auth-client#readme",
   "bugs": "https://github.com/strawdotdev/auth-client/issues",

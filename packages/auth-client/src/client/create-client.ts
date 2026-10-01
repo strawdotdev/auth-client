@@ -106,7 +106,7 @@ export function createAuthDataClient<
   if (config.features.guests) {
     if (!config.features.authentication)
       throw new Error("The guests capability requires the authentication capability");
-    Object.assign(client, createGuestSession(auth, runtime));
+    Object.assign(client, createGuestSession(auth, runtime, config.hasStoredSession));
   }
   if (config.features.authentication)
     Object.assign(client, createAuthenticationWorkflows(auth, runtime));

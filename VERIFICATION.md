@@ -1,5 +1,23 @@
 # Verification
 
+## v0.6.1 — 2026-10-02
+
+A guest is made one round trip sooner. With the new optional `hasStoredSession` (for example
+`() => authClient.getCookie().includes("session_token")` with `crossDomainClient()` or
+`expoClient()`), a visitor whose device holds no session is signed in anonymously alongside Better
+Auth's first session read, which could only come back empty, instead of after it. Without the
+option the guest sign-in waits for that read, as before. Compatible.
+
+- `pnpm check` and 100 controlled tests pass. The new test pins one guest sign-in and one session
+  read while the first read is still on its way, and fails on v0.6.0; another keeps the wait when
+  the device may hold a session or the option is absent.
+- `pnpm test:package` and `pnpm test:git`: compiled and Git-package installations passed.
+- In Gaia's World Game against its cloud dev deployment (7 fresh browsers each, headless Chrome):
+  a new guest's first page took 4.6 s (median) before, 4.1 s with this change alone; with Gaia's
+  own changes beside it (the Convex token Better Auth already set with the sign-in, an early
+  Convex connection) 3.3 s. Its account journey (guest, sign-up, verification, linked sign-in,
+  sign-out to a fresh guest) passed. `pnpm test:e2e` was not rerun.
+
 ## v0.6.0 — 2026-10-01
 
 Better Auth's anonymous plugin is supported. A guest (`session.user.isAnonymous`) may use the

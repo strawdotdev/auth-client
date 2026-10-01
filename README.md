@@ -213,7 +213,7 @@ Better Auth's [anonymous plugin](https://www.better-auth.com/docs/plugins/anonym
 
 `features: { authentication: true, guests: true }` (client-only; it needs `anonymousClient()`) is for an app where every visitor plays at once as a guest:
 
-- `AuthDataProvider` signs a visitor with no session in anonymously, once, and records when the first authentication is reached.
+- `AuthDataProvider` signs a visitor with no session in anonymously, once, and records when the first authentication is reached. Pass `hasStoredSession` (with `crossDomainClient()` or `expoClient()`: `() => authClient.getCookie().includes("session_token")`) so a visitor whose device holds no session becomes a guest at once, alongside Better Auth's first session read rather than after it: one round trip less before the first paint. Without it, the guest sign-in waits for that read.
 - Signing out (and `PasswordResetForm`'s `signOutAfterReset`) leaves a fresh guest; recovery retries the guest sign-in without signing out again. A guest resetting an account's password keeps their own session.
 - `useGuestSession()` returns `userId`, `isAnonymous`, `isEstablished` and the usual `feedback`/`isPending`. `isEstablished` turns true at the first authentication and never false again: gate the first paint on it, never on Convex's `isAuthenticated`, which turns false for a moment whenever a token changes hands. A failed guest sign-in is feedback whose `recovery` retries it.
 
@@ -291,7 +291,7 @@ The workflows replace supported-domain form state, action readiness, conflict gu
 Install the precompiled release:
 
 ```sh
-pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.6.0'
+pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.6.1'
 ```
 
 Release tags contain the ready-to-use package at the repository root: JavaScript, declarations, and source maps. Installation does not compile this library, install its development tooling, or require permission to run its build scripts. The application still bundles normally and supplies the documented peer dependencies and authentication/backend configuration.

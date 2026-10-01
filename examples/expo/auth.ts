@@ -54,4 +54,6 @@ export const guestAuthData = createAuthDataClient({
   authClient,
   api: api.authData,
   features: { authentication: true, guests: true },
+  // A visitor with no stored session becomes a guest without waiting for an empty session read.
+  hasStoredSession: () => authClient.getCookie().includes("session_token"),
 });

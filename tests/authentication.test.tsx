@@ -49,6 +49,8 @@ function sessionStore(initial: Session | null) {
   let refreshFailure: unknown;
   let failAfterRefresh = false;
   let lagRefresh = false;
+  let pending = false;
+  let refetches = 0;
   const listeners = new Set<() => void>();
   convexAuthenticated = Boolean(initial);
   const emit = () => {
@@ -67,8 +69,10 @@ function sessionStore(initial: Session | null) {
       );
       return {
         data: session,
-        isPending: false,
+        isPending: pending,
         refetch: async () => {
+          refetches++;
+          pending = false;
           if (refreshFailure) {
             const failure = refreshFailure;
             refreshFailure = undefined;
@@ -98,6 +102,17 @@ function sessionStore(initial: Session | null) {
     },
     lagRefreshes() {
       lagRefresh = true;
+    },
+    /** Better Auth's first session read is still on its way. */
+    holdFirstRead() {
+      pending = true;
+    },
+    settleFirstRead() {
+      pending = false;
+      emit();
+    },
+    get refetches() {
+      return refetches;
     },
   };
 }
@@ -146,13 +161,13 @@ function authenticationFixture(initial: Session | null = null) {
 }
 
 /** An app that keeps guests: every visitor holds a session, a guest's at first. */
-function guestFixture(initial: Session | null = null) {
+function guestFixture(initial: Session | null = null, hasStoredSession?: () => boolean) {
   const { auth, sessions } = authenticationClient(initial);
   const features = { authentication: true, guests: true } as const;
   return {
     auth,
     sessions,
-    ...withProvider(createAuthDataClient({ authClient: auth, api, features })),
+    ...withProvider(createAuthDataClient({ authClient: auth, api, features, hasStoredSession })),
   };
 }
 
@@ -871,6 +886,47 @@ it("makes a visitor a guest once and stays established while Convex authenticati
   hook.rerender();
   expect(hook.result.current.isEstablished).toBe(true);
   expect(fixture.auth.signIn.anonymous).toHaveBeenCalledTimes(2);
+});
+
+it("makes a visitor with no stored session a guest without waiting for the first session read", async () => {
+  const fixture = guestFixture(null, () => false);
+  fixture.sessions.holdFirstRead();
+  fixture.auth.signIn.anonymous.mockImplementation(async () => {
+    fixture.sessions.transition(guest("guest"));
+    return { user: guest("guest").user, token: guest("guest").session.token };
+  });
+  const hook = renderHook(() => fixture.client.useGuestSession(), {
+    wrapper: fixture.wrapper,
+    reactStrictMode: true,
+  });
+  // The sign-in starts while the first read is still on its way, and is followed by one read.
+  await waitFor(() => expect(hook.result.current.userId).toBe("guest"));
+  expect(fixture.auth.signIn.anonymous).toHaveBeenCalledOnce();
+  expect(fixture.sessions.refetches).toBe(1);
+  act(() => fixture.sessions.settleFirstRead());
+  expect(hook.result.current).toMatchObject({ userId: "guest", isEstablished: true });
+  expect(fixture.auth.signIn.anonymous).toHaveBeenCalledOnce();
+  expect(fixture.sessions.refetches).toBe(1);
+});
+
+it("waits for the first session read when the device may hold a session", async () => {
+  for (const hasStoredSession of [() => true, undefined]) {
+    const fixture = guestFixture(null, hasStoredSession);
+    fixture.sessions.holdFirstRead();
+    fixture.auth.signIn.anonymous.mockImplementation(async () => {
+      fixture.sessions.transition(guest("guest"));
+      return { user: guest("guest").user, token: guest("guest").session.token };
+    });
+    const hook = renderHook(() => fixture.client.useGuestSession(), {
+      wrapper: fixture.wrapper,
+    });
+    await act(async () => {});
+    expect(fixture.auth.signIn.anonymous).not.toHaveBeenCalled();
+    act(() => fixture.sessions.settleFirstRead());
+    await waitFor(() => expect(hook.result.current.userId).toBe("guest"));
+    expect(fixture.auth.signIn.anonymous).toHaveBeenCalledOnce();
+    hook.unmount();
+  }
 });
 
 it("signs out to a fresh guest and recovers the guest sign-in without signing out twice", async () => {
