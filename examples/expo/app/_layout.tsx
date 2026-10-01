@@ -3,7 +3,7 @@ import { useEffect, type ComponentProps } from "react";
 import { AppState, Platform } from "react-native";
 import * as Network from "expo-network";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { AuthDataProvider } from "@strawdev/auth-client";
+import { AuthDataProvider, withStoredConvexToken } from "@strawdev/auth-client";
 import { authClient, convex, authData } from "../auth";
 function Recovery() {
   useEffect(() => {
@@ -41,7 +41,9 @@ export default function Layout() {
     <ConvexBetterAuthProvider
       client={convex}
       authClient={
-        authClient as unknown as ComponentProps<typeof ConvexBetterAuthProvider>["authClient"]
+        withStoredConvexToken(authClient) as unknown as ComponentProps<
+          typeof ConvexBetterAuthProvider
+        >["authClient"]
       }
     >
       <AuthDataProvider client={authData}>

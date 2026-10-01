@@ -31,6 +31,8 @@ export const authClient = createAuthClient({
 });
 export const convex = new ConvexReactClient(
   process.env.EXPO_PUBLIC_CONVEX_URL ?? "http://127.0.0.1:3210",
+  // Keep the first token (withStoredConvexToken's, fresh) until its scheduled refresh.
+  { initialAuthTokenReuse: true },
 );
 export const authData = createAuthDataClient({
   authClient,

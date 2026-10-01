@@ -28,6 +28,8 @@ export const authData = createAuthDataClient({
 <AuthDataProvider client={authData}>{children}</AuthDataProvider>;
 ```
 
+Pass `withStoredConvexToken(authClient)` to `ConvexBetterAuthProvider` (with `crossDomainClient()` or `expoClient()`): the first Convex token fetch for a session uses the token the convex plugin already set with the sign-in or session read (`convex_jwt`) instead of another round trip, when it is the current session's, has more than a minute left and was not handed out before; refreshes ask the server. Give `ConvexReactClient` `initialAuthTokenReuse: true` (experimental in Convex) so it keeps that token until its scheduled refresh.
+
 Enable `organizationClient()` on the original client for organization capabilities. For guests, enable `anonymousClient()` and see [Guests](#guests). Keep that client, the official authentication provider, and application foreground/network refresh wiring. Do not add another QueryClient or authentication layer.
 
 ## Workflow roots and hooks

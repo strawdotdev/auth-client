@@ -6,17 +6,21 @@ A guest is made one round trip sooner. With the new optional `hasStoredSession` 
 `() => authClient.getCookie().includes("session_token")` with `crossDomainClient()` or
 `expoClient()`), a visitor whose device holds no session is signed in anonymously alongside Better
 Auth's first session read, which could only come back empty, instead of after it. Without the
-option the guest sign-in waits for that read, as before. Compatible.
+option the guest sign-in waits for that read, as before. New `withStoredConvexToken(authClient)`
+for `ConvexBetterAuthProvider`: the first Convex token fetch for a session uses the `convex_jwt`
+the convex plugin already set (current session's, more than a minute left, handed out once)
+instead of a `/convex/token` round trip; refreshes ask the server. Compatible.
 
-- `pnpm check` and 100 controlled tests pass. The new test pins one guest sign-in and one session
-  read while the first read is still on its way, and fails on v0.6.0; another keeps the wait when
-  the device may hold a session or the option is absent.
+- `pnpm check` and 104 controlled tests pass. Four cover the kept token: the current session's
+  (handed out once), another session's, near expiry, and none or unreadable. A guest test pins one
+  guest sign-in and one session read while the first read is still on its way, and fails on
+  v0.6.0; another keeps the wait when the device may hold a session or the option is absent.
 - `pnpm test:package` and `pnpm test:git`: compiled and Git-package installations passed.
 - In Gaia's World Game against its cloud dev deployment (7 fresh browsers each, headless Chrome):
-  a new guest's first page took 4.6 s (median) before, 4.1 s with this change alone; with Gaia's
-  own changes beside it (the Convex token Better Auth already set with the sign-in, an early
-  Convex connection) 3.3 s. Its account journey (guest, sign-up, verification, linked sign-in,
-  sign-out to a fresh guest) passed. `pnpm test:e2e` was not rerun.
+  a new guest's first page took 4.6 s (median) before, 4.1 s with the early guest sign-in alone,
+  and 3.3 s with the kept token, `initialAuthTokenReuse` and an early Convex connection beside it.
+  Its account journey (guest, sign-up, verification, linked sign-in, sign-out to a fresh guest)
+  passed. `pnpm test:e2e` was not rerun.
 
 ## v0.6.0 — 2026-10-01
 

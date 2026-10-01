@@ -11,6 +11,7 @@ src/
     provider.tsx                   Existing Convex connection, identity and guest lifecycle
     provider-context.ts            Matching-provider checks and runtime association
     types.ts                       Better Auth endpoint inference and client capabilities
+    convex-token.ts                Convex token Better Auth already handed over (withStoredConvexToken)
   cache/
     query-cache.ts                 Private QueryClient, subscriptions, refresh and expiry
     use-cached-resource.ts         Read observers, protected-data masking and dependencies
