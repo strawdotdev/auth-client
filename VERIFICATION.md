@@ -1,5 +1,15 @@
 # Verification
 
+## v0.6.2 — 2026-10-10
+
+The `convex` peer range widens from `~1.45.0` to `^1.45.0`, as `@convex-dev/better-auth` declares
+it, so consumers on a later Convex 1.x minor no longer see an unmet peer. The workspace and examples
+now develop against Convex 1.46.0. Compatible.
+
+- `pnpm check` and 104 controlled tests pass on Convex 1.46.0.
+- `pnpm test:package` and `pnpm test:git`: compiled and Git-package installations passed.
+- `pnpm test:e2e` was not rerun (no code changed).
+
 ## v0.6.1 — 2026-10-02
 
 A guest is made one round trip sooner. With the new optional `hasStoredSession` (for example

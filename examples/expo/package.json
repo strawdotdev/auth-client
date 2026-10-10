@@ -16,7 +16,7 @@
     "@strawdev/auth-client": "workspace:*",
     "@tanstack/react-query": "5.102.8",
     "better-auth": "1.6.22",
-    "convex": "1.45.0",
+    "convex": "1.46.0",
     "expo": "~57.0.21",
     "expo-constants": "~57.0.17",
     "expo-dev-client": "~57.0.18",

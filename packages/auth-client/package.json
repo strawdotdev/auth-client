@@ -1,6 +1,6 @@
 {
   "name": "@strawdev/auth-client",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Headless Better Auth workflows with reactive Convex freshness",
   "homepage": "https://github.com/strawdotdev/auth-client#readme",
   "bugs": "https://github.com/strawdotdev/auth-client/issues",
@@ -45,7 +45,7 @@
     "@convex-dev/better-auth": "~0.12.5",
     "@tanstack/react-query": "~5.102.8",
     "better-auth": "~1.6.22",
-    "convex": "~1.45.0",
+    "convex": "^1.45.0",
     "react": "~19.2.0",
     "zod": "~4.6.4"
   },
