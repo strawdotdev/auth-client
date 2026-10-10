@@ -12,6 +12,8 @@ function targets(action: WorkflowPendingAction, generation: number): Lock[] {
     "resetPassword",
     "reauthenticate",
     "signOut",
+    "switchAccount",
+    "signOutAccount",
   ].includes(action.operation);
   add("identity", "current", identityTransition, true);
   if (

@@ -7,6 +7,7 @@ import type {
   AuthDataClientConfig,
   Endpoint,
   GuestClient,
+  AccountsClient,
 } from "./types.js";
 import { CacheRuntime } from "../cache/query-cache.js";
 import { useCachedResource } from "../cache/use-cached-resource.js";
@@ -23,6 +24,7 @@ import { createSessionWorkflows, type SessionReads } from "../workflows/sessions
 import { createAuthenticationWorkflows } from "../workflows/authentication/workflows.js";
 import { createAccountWorkflows } from "../workflows/account/workflows.js";
 import { createGuestSession } from "../workflows/authentication/guest.js";
+import { createAccountsWorkflows, type AccountsReads } from "../workflows/accounts/workflows.js";
 export function createAuthDataClient<
   C extends SessionClient,
   F extends Features,
@@ -112,6 +114,23 @@ export function createAuthDataClient<
     Object.assign(client, createAuthenticationWorkflows(auth, runtime));
   if (config.features.account)
     Object.assign(client, createAccountWorkflows(auth, runtime, config.currentUser!));
+  if (config.features.accounts) {
+    if (!config.features.authentication)
+      throw new Error("The accounts capability requires the authentication capability");
+    const accounts = config.authClient as unknown as AccountsClient;
+    client.useDeviceAccounts = (query?: Record<string, unknown>, options?: { enabled?: boolean }) =>
+      useCachedResource(
+        runtime,
+        "listDeviceAccounts",
+        accounts.deviceAccounts.list,
+        query,
+        options,
+      );
+    Object.assign(
+      client,
+      createAccountsWorkflows(accounts, runtime, client as unknown as AccountsReads),
+    );
+  }
   runtimeByClient.set(client, runtime);
   // Only the explicitly selected capabilities are assembled above. TypeScript
   // cannot narrow generic F from runtime booleans; retain C's exact signatures.

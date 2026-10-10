@@ -53,7 +53,9 @@ export type WorkflowOperation =
   | "changePassword"
   | "reauthenticate"
   | "signOut"
-  | "signInAsGuest";
+  | "signInAsGuest"
+  | "switchAccount"
+  | "signOutAccount";
 export type WorkflowPendingAction = {
   operation: WorkflowOperation;
   organizationId?: string;
