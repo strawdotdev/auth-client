@@ -2,6 +2,8 @@ import { looseObject, string, type ZodType } from "zod";
 import type { CacheRuntime } from "../../cache/query-cache.js";
 import type { AccountsClient, AuthenticationClient } from "../../client/types.js";
 import {
+  asRecord,
+  asRecords,
   getActionState,
   getAuthErrorCode,
   requireAvailable,
@@ -94,11 +96,26 @@ export async function synchronizeSignedOut(
 export async function signOutContext(auth: AuthenticationClient, runtime: CacheRuntime) {
   if (!runtime.features.accounts) return call(auth.signOut as Write, {});
   const accounts = auth as AccountsClient;
-  const sessionToken = runtime.authObservation.sessionToken;
+  const { sessionToken, userId } = runtime.authObservation;
   requireAvailable(sessionToken);
+  // The context moves on before its account goes, so nothing it shows (its Convex queries) runs
+  // as a signed-out account for a moment; an account (rather than a guest) where there is one.
+  const others = asRecords(responseValue(await call(accounts.deviceAccounts.list as Write, {})))
+    .filter((entry) => asRecord(entry.user)?.id !== userId)
+    .sort(
+      (a, b) => Number(!asRecord(b.user)?.isAnonymous) - Number(!asRecord(a.user)?.isAnonymous),
+    );
+  const next = asRecord(others[0]?.session)?.token;
+  // The last account: Better Auth's sign-out, which leaves the device without one.
+  if (typeof next !== "string") return call(auth.signOut as Write, {});
+  accounts.deviceAccounts.select(next);
+  await runtime.refreshSession();
   await call(accounts.multiSession.revoke as Write, { sessionToken });
-  accounts.deviceAccounts.select(null);
 }
+const responseValue = (result: unknown) => {
+  const row = asRecord(result);
+  return row && "data" in row ? row.data : result;
+};
 const call = (endpoint: Write, values: Values) => endpoint(values, { throw: true, retry: 0 });
 /**
  * Leaves the context's account after its sign-out was written: with guests, a fresh guest unless

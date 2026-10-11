@@ -1,5 +1,5 @@
 import { looseObject, string } from "zod";
-import { getActionState, getAuthErrorCode, requireAvailable, } from "../shared/action.js";
+import { asRecord, asRecords, getActionState, getAuthErrorCode, requireAvailable, } from "../shared/action.js";
 import { useWorkflowForm } from "../shared/form.js";
 import { recoveryAction, useIdentityAction, withRecoveryFeedback, } from "../shared/identity-action.js";
 import { identityOperationObsolete, resultIdentity, synchronizeAuthenticated, textValue, } from "../shared/identity-sync.js";
@@ -45,11 +45,25 @@ export async function signOutContext(auth, runtime) {
     if (!runtime.features.accounts)
         return call(auth.signOut, {});
     const accounts = auth;
-    const sessionToken = runtime.authObservation.sessionToken;
+    const { sessionToken, userId } = runtime.authObservation;
     requireAvailable(sessionToken);
+    // The context moves on before its account goes, so nothing it shows (its Convex queries) runs
+    // as a signed-out account for a moment; an account (rather than a guest) where there is one.
+    const others = asRecords(responseValue(await call(accounts.deviceAccounts.list, {})))
+        .filter((entry) => asRecord(entry.user)?.id !== userId)
+        .sort((a, b) => Number(!asRecord(b.user)?.isAnonymous) - Number(!asRecord(a.user)?.isAnonymous));
+    const next = asRecord(others[0]?.session)?.token;
+    // The last account: Better Auth's sign-out, which leaves the device without one.
+    if (typeof next !== "string")
+        return call(auth.signOut, {});
+    accounts.deviceAccounts.select(next);
+    await runtime.refreshSession();
     await call(accounts.multiSession.revoke, { sessionToken });
-    accounts.deviceAccounts.select(null);
 }
+const responseValue = (result) => {
+    const row = asRecord(result);
+    return row && "data" in row ? row.data : result;
+};
 const call = (endpoint, values) => endpoint(values, { throw: true, retry: 0 });
 /**
  * Leaves the context's account after its sign-out was written: with guests, a fresh guest unless
