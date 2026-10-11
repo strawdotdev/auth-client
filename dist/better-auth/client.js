@@ -70,6 +70,9 @@ export const deviceAccountsClient = ({ storage = memoryStorage(), key = "better-
                             return;
                         write(undefined);
                         const data = await readSession(Object.fromEntries(url.searchParams));
+                        // A read outside the session hook (the integration's AuthBoundary calls getSession on a
+                        // revoked session) must still move the hook on: it refetches as the device's account.
+                        setTimeout(sessionChanged, 0);
                         return new Response(JSON.stringify(data), {
                             headers: { "content-type": "application/json" },
                         });
