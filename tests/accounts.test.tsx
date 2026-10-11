@@ -148,11 +148,25 @@ function fixture(features: { guests?: true }, ...signedIn: Session[]) {
     api,
     features: { authentication: true, accounts: true, ...features },
   });
+  return { model, client, wrapper: provide(client) };
+}
+
+/** As `fixture`, typed with guests (whose accounts can switch to a guest). */
+function guestFixture(...signedIn: Session[]) {
+  const model = device(...signedIn);
+  const client = createAuthDataClient({
+    authClient: model.auth,
+    api,
+    features: { authentication: true, guests: true, accounts: true },
+  });
+  return { model, client, wrapper: provide(client) };
+}
+
+function provide(client: { dispose(): void }) {
   disposals.push(() => client.dispose());
-  const wrapper = ({ children }: { children: ReactNode }) => (
+  return ({ children }: { children: ReactNode }) => (
     <AuthDataProvider client={client as AuthDataLifecycle}>{children}</AuthDataProvider>
   );
-  return { model, client, wrapper };
 }
 
 const alice = person("alice");
@@ -306,6 +320,36 @@ it("leaves a guest only when no other account remains on the device", async () =
   });
   expect(shared.model.auth.signIn.anonymous).not.toHaveBeenCalled();
   expect(shared.model.current).toBe("alice");
+});
+
+it("makes this context a guest beside the device's accounts, reusing the device's guest", async () => {
+  const { model, client, wrapper } = guestFixture(alice, bob);
+  const onSwitched = vi.fn();
+  const hook = renderHook(() => client.useAccounts({ onSwitched }), { wrapper });
+  await waitFor(() => expect(hook.result.current.actions.switchToGuest.isDisabled).toBe(false));
+  await act(async () => {
+    expect(await hook.result.current.actions.switchToGuest.run()).toMatchObject({
+      status: "success",
+      data: { outcome: "switched", userId: "guest-2" },
+    });
+  });
+  expect(model.current).toBe("guest-2");
+  expect(model.signedIn).toEqual(["alice", "bob", "guest-2"]);
+  expect(onSwitched).toHaveBeenCalledOnce();
+  // A guest already: nothing to switch to.
+  await waitFor(() =>
+    expect(hook.result.current.actions.switchToGuest.disabledReason).toEqual({
+      code: "unavailable",
+    }),
+  );
+
+  // Back to an account, a guest again is the same guest.
+  await waitFor(() => expect(hook.result.current.data).toHaveLength(3));
+  await act(async () => void (await hook.result.current.account("alice").switch.run()));
+  await waitFor(() => expect(hook.result.current.actions.switchToGuest.isDisabled).toBe(false));
+  await act(async () => void (await hook.result.current.actions.switchToGuest.run()));
+  expect(model.auth.signIn.anonymous).toHaveBeenCalledOnce();
+  expect(model.current).toBe("guest-2");
 });
 
 it("signs the device's last account out with Better Auth's sign-out", async () => {

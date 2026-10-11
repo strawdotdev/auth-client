@@ -179,7 +179,10 @@ export type AuthDataClient<
     : unknown) &
   (F extends { guests: true } ? GuestSessionWorkflow : unknown) &
   (F extends { accounts: true }
-    ? AccountsWorkflows<C extends AccountsClient ? C : never>
+    ? AccountsWorkflows<
+        C extends AccountsClient ? C : never,
+        F extends { guests: true } ? true : false
+      >
     : unknown);
 
 export type AuthDataClientConfig<

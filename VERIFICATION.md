@@ -1,5 +1,19 @@
 # Verification
 
+## v0.7.3 — 2026-10-11
+
+With guests and accounts, `useAccounts().actions.switchToGuest` makes the tab a guest beside the
+device's accounts: the device's guest when it keeps one (`account(id).switch`'s path), else a new
+one through Better Auth's `signIn.anonymous` from the account's tab, which the anonymous plugin
+allows and `deviceAccounts()` leaves alone (the account it came from is no guest). Present only
+when the client has guests. Compatible.
+
+- `pnpm verify`, `pnpm test:package` and `pnpm test:git` pass; a new in-memory test covers making
+  a guest beside two accounts, it being unavailable to a guest, and the device's guest reused.
+- Exercised in Gaia's World Game on its development environment (two accounts and a guest in one
+  tab: account to guest to another account and back). `pnpm test:e2e` was not run: the example
+  does not use the action.
+
 ## v0.7.2 — 2026-10-11
 
 With accounts, signing a tab out of its account first moves the tab on to another of the device's

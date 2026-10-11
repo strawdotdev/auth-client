@@ -1,5 +1,9 @@
 import { createAuthClient } from "better-auth/react";
-import { multiSessionClient, organizationClient } from "better-auth/client/plugins";
+import {
+  anonymousClient,
+  multiSessionClient,
+  organizationClient,
+} from "better-auth/client/plugins";
 import {
   createAuthDataClient,
   deviceAccountsClient,
@@ -54,3 +58,17 @@ const withoutAccounts = createAuthDataClient({
 });
 // @ts-expect-error accounts need the accounts capability
 withoutAccounts.useAccounts();
+
+const withGuests = createAuthDataClient({
+  authClient: createAuthClient({
+    plugins: [anonymousClient(), multiSessionClient(), deviceAccountsClient()],
+  }),
+  api,
+  features: { authentication: true, guests: true, accounts: true },
+});
+function useGuestControls() {
+  void withGuests.useAccounts().actions.switchToGuest.run();
+  // @ts-expect-error a guest needs the guests capability
+  void accounts.useAccounts().actions.switchToGuest;
+}
+void useGuestControls;

@@ -1,5 +1,5 @@
 import type { CacheRuntime } from "../../cache/query-cache.js";
-import type { AccountsClient, Result } from "../../client/types.js";
+import type { AccountsClient, GuestClient, Result } from "../../client/types.js";
 import {
   asRecord,
   asRecords,
@@ -14,7 +14,11 @@ import {
   useIdentityAction,
   withRecoveryFeedback,
 } from "../shared/identity-action.js";
-import { synchronizeAuthenticated } from "../shared/identity-sync.js";
+import {
+  resultIdentity,
+  synchronizeAuthenticated,
+  type ExpectedIdentity,
+} from "../shared/identity-sync.js";
 import { defineWorkflow } from "../shared/root.js";
 import type { WorkflowFeedbackOptions, WorkflowPendingAction } from "../shared/types.js";
 import {
@@ -54,7 +58,8 @@ export function createAccountsWorkflows(
 ) {
   const scope = "accounts";
   const receipts = new Map<string, Receipt>();
-  const afterSignOut: LeaveStage = guestSession(runtime) ? "guest" : "synchronization";
+  const guests = guestSession(runtime) !== undefined;
+  const afterSignOut: LeaveStage = guests ? "guest" : "synchronization";
 
   function useAccounts(options: Options = {}) {
     const query = reads.useDeviceAccounts(undefined, { enabled: options.enabled });
@@ -71,6 +76,12 @@ export function createAccountsWorkflows(
     );
     const receipt = receipts.get(scope);
     const latest = useCommittedRef({ query, options });
+    const guestOf = (rows: unknown) => {
+      const user = asRecords(rows)
+        .map((entry) => asRecord(entry.user))
+        .find((entry) => entry?.isAnonymous === true);
+      return typeof user?.id === "string" ? user.id : undefined;
+    };
     const tokenOf = (userId: string, rows: unknown) => {
       const row = asRecords(rows).find((entry) => asRecord(entry.user)?.id === userId);
       const token = asRecord(row?.session)?.token;
@@ -87,22 +98,49 @@ export function createAccountsWorkflows(
       return completion;
     }
 
-    function switchTo(userId: string) {
-      return action.run({ operation: "switchAccount" }, async (transaction) => {
-        const token = tokenOf(userId, latest.current.query.data);
-        requireAvailable(token);
-        const { userId: previous, sessionToken } = runtime.authObservation;
-        // Choosing is local to this context; nothing is written to the server.
+    /** Makes this context the identity `write` chose or created, once its session is observed. */
+    async function becomeIdentity(
+      transaction: ActionExecution,
+      write: () => Promise<ExpectedIdentity>,
+    ) {
+      const { userId: previous, sessionToken } = runtime.authObservation;
+      const identity = await synchronizeAuthenticated(runtime, transaction, await write(), {
+        userId: previous,
+        token: sessionToken,
+      });
+      const completion = { outcome: "switched" as const, ...identity };
+      await transaction.complete(() => latest.current.options.onSwitched?.(completion));
+      return completion;
+    }
+
+    /** Chooses a listed account; choosing is local to this context, nothing is written. */
+    const select = (transaction: ActionExecution, userId: string) => {
+      const token = tokenOf(userId, latest.current.query.data);
+      requireAvailable(token);
+      return becomeIdentity(transaction, async () => {
         await transaction.write(async () => auth.deviceAccounts.select(token));
-        const identity = await synchronizeAuthenticated(
-          runtime,
-          transaction,
-          { userId, token },
-          { userId: previous, token: sessionToken },
+        return { userId, token };
+      });
+    };
+
+    function switchTo(userId: string) {
+      return action.run({ operation: "switchAccount" }, (transaction) =>
+        select(transaction, userId),
+      );
+    }
+
+    /** The device's guest, if it keeps one; else a new guest beside the device's accounts. */
+    function switchToGuest() {
+      return action.run({ operation: "signInAsGuest" }, (transaction) => {
+        const guest = guestOf(latest.current.query.data);
+        if (guest) return select(transaction, guest);
+        return becomeIdentity(transaction, async () =>
+          resultIdentity(
+            await transaction.write(() =>
+              call((auth as unknown as GuestClient).signIn.anonymous, {}),
+            ),
+          ),
         );
-        const completion = { outcome: "switched" as const, ...identity };
-        await transaction.complete(() => latest.current.options.onSwitched?.(completion));
-        return completion;
       });
     }
 
@@ -178,6 +216,19 @@ export function createAccountsWorkflows(
           ),
           run: () => signOutAll(),
         },
+        ...(guests && {
+          switchToGuest: {
+            ...action.control(
+              { operation: "signInAsGuest" },
+              receipt
+                ? { code: "recovery" }
+                : !currentUserId || runtime.authObservation.isAnonymous || !query.data
+                  ? { code: "unavailable" }
+                  : null,
+            ),
+            run: () => switchToGuest(),
+          },
+        }),
       },
     };
     return withRecoveryFeedback(

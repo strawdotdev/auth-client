@@ -147,22 +147,22 @@ Settings expose `form` only while an authorized organization exists. Pristine dr
 
 ## Actions and recovery
 
-| Workflow                   | Controls                                                                             |
-| -------------------------- | ------------------------------------------------------------------------------------ |
-| Directory                  | `select(organizationId)`                                                             |
-| Creation / invitation form | `actions.submit`                                                                     |
-| Settings                   | `form.actions.submit`, `actions.update.run(data)`, `actions.leave`, `actions.delete` |
-| Members                    | `member(id).remove`, `member(id).updateRole(role)`                                   |
-| Received invitations       | `invitation(id).accept`, `invitation(id).reject`                                     |
-| Single invitation          | `actions.accept`, `actions.reject`                                                   |
-| Outgoing invitations       | `invitation(id).cancel`, `invitation(id).resend`                                     |
-| Sessions                   | `session(id).revoke`, `actions.revokeOthers`, `actions.revokeAll`                    |
-| Sign in / sign up          | `form.actions.submit`                                                                |
-| Reset / verification       | `form.actions.submit`                                                                |
-| Profile                    | `form.actions.submit`, `actions.update.run(data)`, `actions.updateImage.run(image)`  |
-| Email / password / reauth  | `form.actions.submit`                                                                |
-| Sign out                   | `actions.signOut`                                                                    |
-| Accounts                   | `account(userId).switch`, `account(userId).signOut`, `actions.signOutAll`            |
+| Workflow                   | Controls                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Directory                  | `select(organizationId)`                                                                                    |
+| Creation / invitation form | `actions.submit`                                                                                            |
+| Settings                   | `form.actions.submit`, `actions.update.run(data)`, `actions.leave`, `actions.delete`                        |
+| Members                    | `member(id).remove`, `member(id).updateRole(role)`                                                          |
+| Received invitations       | `invitation(id).accept`, `invitation(id).reject`                                                            |
+| Single invitation          | `actions.accept`, `actions.reject`                                                                          |
+| Outgoing invitations       | `invitation(id).cancel`, `invitation(id).resend`                                                            |
+| Sessions                   | `session(id).revoke`, `actions.revokeOthers`, `actions.revokeAll`                                           |
+| Sign in / sign up          | `form.actions.submit`                                                                                       |
+| Reset / verification       | `form.actions.submit`                                                                                       |
+| Profile                    | `form.actions.submit`, `actions.update.run(data)`, `actions.updateImage.run(image)`                         |
+| Email / password / reauth  | `form.actions.submit`                                                                                       |
+| Sign out                   | `actions.signOut`                                                                                           |
+| Accounts                   | `account(userId).switch`, `account(userId).signOut`, `actions.signOutAll`, `actions.switchToGuest` (guests) |
 
 Observed-item actions resolve current payloads internally. Resend preserves supported custom invitation fields. Do not copy rows into mutation payloads.
 
@@ -278,6 +278,8 @@ const authData = createAuthDataClient({
   read, never showing a passing sign-out. `actions.signOutAll` is Better Auth's sign-out: every
   account. A password change that revokes other sessions keeps every tab signed in.
 - A guest who signs in or up leaves the device's accounts, linked to the account.
+- With guests, `actions.switchToGuest` makes the tab a guest: the device's guest if it keeps one,
+  else a new one beside the device's accounts, which stay signed in.
 
 `accounts` is client-only and needs `authentication`. Product rules (which account opens which
 organization, the switcher's presentation) stay in the application.
