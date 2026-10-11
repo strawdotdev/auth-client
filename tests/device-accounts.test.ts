@@ -305,3 +305,24 @@ it("shows each account's organizations as the application orders and filters the
   const { data } = await first.client.deviceAccounts.list();
   expect(data?.[0]?.organizations.map(({ slug }) => slug)).toEqual(["mine", "shared"]);
 });
+
+it("moves the session hook on when any read finds the tab's account gone", async () => {
+  await account("alice@example.com");
+  await account("bob@example.com");
+  const first = tab();
+  await signIn(first, "alice@example.com");
+  const second = tab();
+  await signIn(second, "bob@example.com");
+  const bob = (await first.client.deviceAccounts.list()).data!.find(
+    ({ user }) => user.email === "bob@example.com",
+  )!;
+  await first.client.multiSession.revoke({ sessionToken: bob.session.token });
+  // The second tab's hook learns of it from a direct read, as AuthBoundary makes one.
+  const signal = second.client.$store.atoms.$sessionSignal!;
+  const toggles: unknown[] = [];
+  const stop = signal.listen((value: unknown) => toggles.push(value));
+  expect((await second.client.getSession()).data?.user.email).toBe("alice@example.com");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  stop();
+  expect(toggles.length).toBeGreaterThan(0);
+});

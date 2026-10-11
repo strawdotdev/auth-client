@@ -1,5 +1,17 @@
 # Verification
 
+## v0.7.1 — 2026-10-11
+
+A tab whose account was signed out elsewhere left its session hook on the gone account when the
+read that found it was not the hook's own: the integration's `AuthBoundary` calls `getSession()`
+on a revoked session, which `crossDomainClient()` used to follow with a session signal. The
+client plugin now signals the hook whenever a read finds the tab's account gone, so the tab moves
+on (or signs out) as it did. Compatible.
+
+- `pnpm verify`, `pnpm test:package` and `pnpm test:git` pass; a new in-memory test pins the
+  signal on a direct `getSession()`.
+- Found by Gaia's Organization journey "active sessions synchronize across signed-in clients".
+
 ## v0.7.0 — 2026-10-11
 
 Several accounts on one device, each browser tab acting as its own: the client-only `accounts`
