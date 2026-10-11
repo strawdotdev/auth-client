@@ -27,6 +27,7 @@ const scope = v.union(
   v.literal("invitations"),
   v.literal("sessions"),
   v.literal("invitation"),
+  v.literal("passkeys"),
 );
 export const authSignalTables = {
   authSignals: defineTable({ scope, subject: v.string(), revision: v.number() }).index(
@@ -103,6 +104,7 @@ export function createSignalQueries<DataModel extends GenericDataModel = Generic
         features: v.object({
           organization: v.optional(v.boolean()),
           sessions: v.optional(v.boolean()),
+          passkeys: v.optional(v.boolean()),
         }),
         userId: v.string(),
         denied: v.boolean(),
@@ -120,12 +122,13 @@ export function createSignalQueries<DataModel extends GenericDataModel = Generic
         for (const dep of dependencies) {
           if (
             (dep.scope === "sessions" && !options.features.sessions) ||
-            (dep.scope !== "sessions" && !options.features.organization)
+            (dep.scope === "passkeys" && !options.features.passkeys) ||
+            (dep.scope !== "sessions" && dep.scope !== "passkeys" && !options.features.organization)
           )
             throw new Error("Disabled reactive capability");
           let allowed = false;
           const related: ResourceDependency[] = [];
-          if (["directory", "invitations", "sessions"].includes(dep.scope))
+          if (["directory", "invitations", "sessions", "passkeys"].includes(dep.scope))
             allowed = dep.subject === userId;
           if (dep.scope === "organization") {
             let organizationId = dep.subject;
@@ -245,6 +248,7 @@ export function createSignalTriggers(options: {
           if (recipient) add("invitations", recipient._id);
         }
         if (table === "session") add("sessions", item.userId);
+        if (table === "passkey") add("passkeys", item.userId);
       }
       for (const dep of deps.values()) await markSignal(ctx, dep);
     };
@@ -259,6 +263,18 @@ export function createSignalTriggers(options: {
         if (typeof doc.userId !== "string") throw new Error("Session is missing its userId");
         await ctx.scheduler.runAfter(0, options.markSessionsChanged, { userId: doc.userId });
       },
+    };
+  if (options.features.passkeys)
+    result.passkey = {
+      onCreate: change("passkey"),
+      onUpdate: change("passkey"),
+      onDelete: change("passkey"),
+    };
+  if (options.features.passkeys)
+    result.passkey = {
+      onCreate: change("passkey"),
+      onUpdate: change("passkey"),
+      onDelete: change("passkey"),
     };
   return result;
 }

@@ -309,7 +309,8 @@ export class CacheRuntime {
           if (
             result.protocol !== 1 ||
             (this.features.organization && !result.features.organization) ||
-            (this.features.sessions && !result.features.sessions)
+            (this.features.sessions && !result.features.sessions) ||
+            (this.features.passkeys && !result.features.passkeys)
           )
             throw new Error("Auth data backend capability mismatch");
           for (const fn of targets) fn(null, result.denied);

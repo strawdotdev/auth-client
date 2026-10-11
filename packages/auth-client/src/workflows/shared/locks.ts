@@ -8,6 +8,7 @@ function targets(action: WorkflowPendingAction, generation: number): Lock[] {
     result.push({ key: JSON.stringify([stable ? "runtime" : generation, kind, id]), exclusive });
   const identityTransition = [
     "signIn",
+    "signInWithPasskey",
     "signUp",
     "resetPassword",
     "reauthenticate",
@@ -40,6 +41,9 @@ function targets(action: WorkflowPendingAction, generation: number): Lock[] {
   if (action.operation.startsWith("revoke"))
     add("sessions", "all", action.operation !== "revokeSession");
   if (action.sessionId) add("session", action.sessionId);
+  if (action.operation === "addPasskey" || action.operation === "deletePasskey")
+    add("passkeys", "all", action.operation === "addPasskey");
+  if (action.passkeyId) add("passkey", action.passkeyId);
   return result;
 }
 

@@ -5,6 +5,7 @@ import {
   authSignalTables,
   markSignal,
   composeTriggers,
+  createSignalTriggers,
 } from "../packages/auth-client/src/convex/index.js";
 import {
   dependencies,
@@ -31,6 +32,27 @@ it("increments scoped revisions transactionally and retains unrelated rows", asy
     }),
   ).rejects.toThrow("rollback");
   expect((await t.run((ctx) => ctx.db.query("authSignals").collect()))[0]?.revision).toBe(2);
+});
+it("marks the owner's passkeys signal whenever a passkey is added, used or removed", async () => {
+  const { makeFunctionReference } = await import("convex/server");
+  const triggers = createSignalTriggers({
+    features: { passkeys: true },
+    lookup: makeFunctionReference("lookup:lookup"),
+    markSessionsChanged: makeFunctionReference<"mutation", { userId: string }, null>(
+      "auth:markSessionsChanged",
+    ) as any,
+  });
+  const t = convexTest(defineSchema({ ...authSignalTables }), {
+    "./_generated/server.js": async () => import("convex/server"),
+  });
+  const passkey = { _id: "passkey", userId: "owner" };
+  await t.run(async (ctx) => {
+    await triggers.passkey?.onCreate?.(ctx as any, passkey);
+    await triggers.passkey?.onUpdate?.(ctx as any, { ...passkey, counter: 1 }, passkey);
+    await triggers.passkey?.onDelete?.(ctx as any, passkey);
+  });
+  const rows = await t.run((ctx) => ctx.db.query("authSignals").collect());
+  expect(rows.map((r) => [r.scope, r.subject, r.revision])).toEqual([["passkeys", "owner", 3]]);
 });
 it("composes application triggers first and propagates rejection", async () => {
   const calls: string[] = [];
@@ -111,7 +133,7 @@ it("authorizes signal scopes and enforces invitation verification and protocol",
     }),
   });
   const { signals } = createSignalQueries({
-    features: { organization: true, sessions: true },
+    features: { organization: true, sessions: true, passkeys: true },
     lookup: makeFunctionReference("lookup:lookup"),
     requireVerifiedInvitationEmail: true,
     getAuthUser: async (ctx) => {
@@ -163,6 +185,12 @@ it("authorizes signal scopes and enforces invitation verification and protocol",
   expect(
     (await outsider.query(ref, { dependencies: [{ scope: "sessions", subject: "owner" }] })).denied,
   ).toBe(true);
+  expect(
+    (await outsider.query(ref, { dependencies: [{ scope: "passkeys", subject: "owner" }] })).denied,
+  ).toBe(true);
+  expect(
+    (await owner.query(ref, { dependencies: [{ scope: "passkeys", subject: "owner" }] })).denied,
+  ).toBe(false);
   expect(
     (await outsider.query(ref, { dependencies: [{ scope: "invitation", subject: invitation }] }))
       .denied,

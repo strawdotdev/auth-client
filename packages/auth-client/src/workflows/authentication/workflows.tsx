@@ -1,12 +1,14 @@
+import { useEffect } from "react";
 import { looseObject, string, type ZodType } from "zod";
 import type { CacheRuntime } from "../../cache/query-cache.js";
-import type { AccountsClient, AuthenticationClient } from "../../client/types.js";
+import type { AccountsClient, AuthenticationClient, PasskeyClient } from "../../client/types.js";
 import {
   asRecord,
   asRecords,
   getActionState,
   getAuthErrorCode,
   requireAvailable,
+  useCommittedRef,
   type ActionExecution,
   type Values,
 } from "../shared/action.js";
@@ -158,6 +160,7 @@ function departingIdentity(runtime: CacheRuntime): ExpectedIdentity {
 
 export function createAuthenticationWorkflows(auth: AuthenticationClient, runtime: CacheRuntime) {
   const receipts = new Map<string, AuthReceipt>();
+  const passkeys = auth as PasskeyClient;
   const guests = guestSession(runtime);
   const afterSignOut: LeaveStage = guests ? "guest" : "synchronization";
   function useReceiptAction(
@@ -205,9 +208,9 @@ export function createAuthenticationWorkflows(auth: AuthenticationClient, runtim
   }
 
   function useAuthenticationEntry(
-    scope: "sign-in" | "sign-up",
+    scope: "sign-in" | "sign-up" | "passkey-sign-in",
     kind: "signIn" | "signUp",
-    operation: "signIn" | "signUp",
+    operation: "signIn" | "signUp" | "signInWithPasskey",
     options: Options,
   ) {
     const { action, receipt } = useReceiptAction(scope, "guest", options);
@@ -257,6 +260,76 @@ export function createAuthenticationWorkflows(auth: AuthenticationClient, runtim
       },
     });
     return withRecoveryFeedback(form, action, target, recovery, hasReceipt);
+  }
+
+  /**
+   * Signs in with a passkey: by `actions.signIn` (the browser asks for one), or with `autoFill`
+   * from the browser's suggestions on a field marked `autocomplete="username webauthn"`, rendered
+   * before this hook's effects run. The autofill ceremony waits outside the workflow until a
+   * passkey is chosen, so it holds nothing; either way the sign-in finishes as a password's does.
+   * A cancelled ceremony completes as `cancelled`, without an error.
+   */
+  function usePasskeySignIn(options: Options = { initialValues: {} }) {
+    const entry = useAuthenticationEntry("passkey-sign-in", "signIn", "signInWithPasskey", options);
+    const { action, finish, hasReceipt, recovery, target } = entry;
+    const signIn = async (
+      transaction: ActionExecution,
+      ceremony: () => Promise<unknown>,
+      departing = { guestUserId: departingGuest(runtime), previous: departingIdentity(runtime) },
+    ) => {
+      let result: unknown;
+      try {
+        result = await transaction.write(ceremony);
+      } catch (cause) {
+        if (!passkeyCancelled(cause)) throw cause;
+        return { outcome: "cancelled" as const };
+      }
+      receipts.set("passkey-sign-in", {
+        kind: "signIn",
+        expected: resultIdentity(result),
+        ...departing,
+      });
+      return finish(transaction);
+    };
+    const autoFill = options.autoFill === true && action.available && !hasReceipt;
+    const latest = useCommittedRef({ action, target, signIn });
+    useEffect(() => {
+      if (!autoFill) return;
+      let live = true;
+      const departing = {
+        guestUserId: departingGuest(runtime),
+        previous: departingIdentity(runtime),
+      };
+      // Waits for a choice; another ceremony (the button's) aborts it, and it ends unanswered.
+      passkeyCeremony(passkeys, { autoFill: true }).then(
+        (result) => {
+          const { action, target, signIn } = latest.current;
+          if (live)
+            void action.run(target, (transaction) =>
+              signIn(transaction, async () => result, departing),
+            );
+        },
+        () => {},
+      );
+      return () => {
+        live = false;
+      };
+    }, [autoFill, latest]);
+    const state = {
+      ...getActionState(action),
+      actions: {
+        signIn: {
+          ...action.control(target, hasReceipt ? { code: "recovery" } : null),
+          run: () =>
+            hasReceipt
+              ? Promise.resolve({ status: "ignored" as const, reason: "disabled" as const })
+              : action.run(target, (transaction) =>
+                  signIn(transaction, () => passkeyCeremony(passkeys, {})),
+                ),
+        },
+      },
+    };
+    return withRecoveryFeedback(state, action, target, recovery, hasReceipt);
   }
 
   function useSignUpForm(options: Options) {
@@ -450,5 +523,32 @@ export function createAuthenticationWorkflows(auth: AuthenticationClient, runtim
       defineSchemaWorkflow(useEmailVerification, schema),
     ),
     ...exposeWorkflow("SignOut", signOut),
+    ...(runtime.features.passkeys
+      ? exposeWorkflow("PasskeySignIn", defineWorkflow(usePasskeySignIn))
+      : {}),
   };
+}
+
+/**
+ * Better Auth's passkey client answers its ceremony's failures (a cancelled prompt, an unknown
+ * passkey) as `{ error }` rather than throwing; the workflow throws them as other writes do.
+ */
+async function passkeyCeremony(auth: PasskeyClient, body: { autoFill?: boolean }) {
+  const result = await (auth.signIn.passkey as (body: unknown) => Promise<unknown>)(body);
+  const error = asRecord(result)?.error;
+  if (error) throw error;
+  return result;
+}
+
+/**
+ * The ceremony ended without a passkey: the person closed the browser's prompt or it timed out (a
+ * `NotAllowedError`, passed through), another ceremony took its place, or the browser offers none.
+ */
+export function passkeyCancelled(cause: unknown) {
+  const code = getAuthErrorCode(cause);
+  return (
+    code === "AUTH_CANCELLED" ||
+    code === "ERROR_CEREMONY_ABORTED" ||
+    code === "ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY"
+  );
 }

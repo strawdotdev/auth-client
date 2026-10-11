@@ -22,6 +22,7 @@
     "release:prepare": "node tools/release-package.mjs"
   },
   "devDependencies": {
+    "@better-auth/passkey": "1.6.22",
     "@convex-dev/better-auth": "0.12.5",
     "@playwright/test": "1.62.1",
     "@strawdev/resend-tui": "github:strawdotdev/resend-tui#v0.1.2",
