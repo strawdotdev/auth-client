@@ -14,4 +14,5 @@ export type * from "./workflows/sessions/types.js";
 export type * from "./workflows/authentication/types.js";
 export type * from "./workflows/account/types.js";
 export type * from "./workflows/accounts/types.js";
+export type * from "./workflows/passkeys/types.js";
 //# sourceMappingURL=index.d.ts.map

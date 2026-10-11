@@ -58,6 +58,8 @@ Each root adds no markup and owns one workflow. Its context hook reads that inst
 | ReauthenticationForm     | useReauthenticationFormContext     | useReauthenticationForm     |
 | SignOut                  | useSignOutContext                  | useSignOut                  |
 | Accounts                 | useAccountsContext                 | useAccounts                 |
+| PasskeySignIn            | usePasskeySignInContext            | usePasskeySignIn            |
+| Passkeys                 | usePasskeysContext                 | usePasskeys                 |
 
 All are properties of the configured `authData` client. Scope, identity changes, and genuine departure retire private state and unfinished callbacks. With `guests: true`, the client also has `useGuestSession()` (no root: it reads the client's one guest session).
 
@@ -163,6 +165,8 @@ Settings expose `form` only while an authorized organization exists. Pristine dr
 | Email / password / reauth  | `form.actions.submit`                                                                                       |
 | Sign out                   | `actions.signOut`                                                                                           |
 | Accounts                   | `account(userId).switch`, `account(userId).signOut`, `actions.signOutAll`, `actions.switchToGuest` (guests) |
+| Passkey sign-in            | `actions.signIn`                                                                                            |
+| Passkeys                   | `actions.add.run({ name? })`, `passkey(id).remove`                                                          |
 
 Observed-item actions resolve current payloads internally. Resend preserves supported custom invitation fields. Do not copy rows into mutation payloads.
 
@@ -284,6 +288,41 @@ const authData = createAuthDataClient({
 `accounts` is client-only and needs `authentication`. Product rules (which account opens which
 organization, the switcher's presentation) stay in the application.
 
+## Passkeys
+
+Passkeys beside the password, through Better Auth's
+[passkey plugin](https://www.better-auth.com/docs/plugins/passkey): an account made with email and
+password adds a passkey, then signs in with it.
+
+```ts
+// Backend (Better Auth options): one relying party for every app under the cookie's domain
+import { passkey } from "@better-auth/passkey";
+plugins: [passkey({ rpID: "example.com", rpName: "Example", origin: appOrigins })];
+
+// Client
+import { passkeyClient } from "@better-auth/passkey/client";
+const authClient = createAuthClient({ plugins: [passkeyClient() /* , ... */] });
+const authData = createAuthDataClient({
+  authClient,
+  api,
+  features: { authentication: true, passkeys: true /* , ... */ },
+});
+```
+
+- **Signing in** (`usePasskeySignIn`): `actions.signIn` asks the browser for a passkey. With
+  `autoFill: true`, the device's passkeys are also among the browser's suggestions for a field marked
+  `autocomplete="username webauthn"`, rendered with the workflow; that ceremony waits outside the
+  workflow until one is chosen. Either finishes as a password sign-in does: synchronization and its
+  recovery, a guest linked, an account added beside the device's others. A closed prompt completes
+  as `{ outcome: "cancelled" }`, without an error.
+- **Managing** (`usePasskeys`): the account's passkeys (`data`), `actions.add` (the browser makes
+  one) and `passkey(id).remove`. Adding needs a recent sign-in (Better Auth's `freshAge`):
+  `needsFreshSession` turns on, and the application reauthenticates (`ReauthenticationForm`) before
+  adding again.
+
+`passkeys` is backed by the `passkeys` signal (the `passkey` table's triggers), so set it on both
+sides; it needs `authentication`.
+
 ## Low-level reads and methods
 
 ```tsx
@@ -295,9 +334,9 @@ const invitation = authData.useInvitation({ id: invitationId });
 await authData.organization.inviteMember({ organizationId, email, role: "member" });
 ```
 
-Other reads: `useMemberRole`, `useListInvitations`, `useListSessions`. Each returns `data`, `error`, `isPending`, `isFetching`, and `refetch`. Resource `refetch()` can retry after a synchronization failure. Client errors (HTTP 4xx except rate limiting) hide previous private results; server/network refresh errors can retain previously authorized data. Query arguments use the upstream endpoint fields. The second hook argument accepts `{ enabled: false }`. Explicit organization scope is required; these hooks do not follow `activeOrganizationId`.
+Other reads: `useMemberRole`, `useListInvitations`, `useListSessions`, `useListPasskeys`. Each returns `data`, `error`, `isPending`, `isFetching`, and `refetch`. Resource `refetch()` can retry after a synchronization failure. Client errors (HTTP 4xx except rate limiting) hide previous private results; server/network refresh errors can retain previously authorized data. Query arguments use the upstream endpoint fields. The second hook argument accepts `{ enabled: false }`. Explicit organization scope is required; these hooks do not follow `activeOrganizationId`.
 
-Mutation methods preserve upstream argument tuples, callbacks, throw options, and return values. Supported organization methods are `create`, `update`, `delete`, `leave`, `inviteMember` (including resend), `cancelInvitation`, `acceptInvitation`, `rejectInvitation`, `removeMember`, and `updateMemberRole`. Session methods are `revokeSession`, `revokeOtherSessions`, and `revokeSessions`.
+Mutation methods preserve upstream argument tuples, callbacks, throw options, and return values. Supported organization methods are `create`, `update`, `delete`, `leave`, `inviteMember` (including resend), `cancelInvitation`, `acceptInvitation`, `rejectInvitation`, `removeMember`, and `updateMemberRole`. Session methods are `revokeSession`, `revokeOtherSessions`, and `revokeSessions`. Passkey methods are `passkey.addPasskey` and `passkey.deletePasskey`.
 
 A successful mutation starts cache invalidation; it does not wait for the UI to refresh. Read failures do not change the mutation result. A write finishing after a session change cannot invalidate the new session's cache. `await authData.refresh()` explicitly waits for observed reads to refresh and rejects refresh failures. Original-client/server mutations also propagate through backend signals.
 
@@ -315,7 +354,7 @@ Use the official Better Auth **local component installation** with organization 
 6. Export `createSignalQueries({ features, lookup, getAuthUser, requireVerifiedInvitationEmail }).signals` as an authenticated public app query. `getAuthUser` delegates to your official auth component.
 7. Pass the generated `api.authData` reference to the adapter.
 
-Use the same backend-backed `organization` and `sessions` flags on both sides. `authentication`, `account` and `guests` are client-only workflow capabilities. Protocol/capability mismatches surface as synchronization errors. Supply the **effective** invitation verification requirement from your auth configuration; it is required rather than guessed. In the example a shared `true` constant configures both Better Auth and the bridge. Account for Better Auth's generated/custom-ID defaults if your policy is implicit.
+Use the same backend-backed `organization`, `sessions` and `passkeys` flags on both sides. `authentication`, `account` and `guests` are client-only workflow capabilities. Protocol/capability mismatches surface as synchronization errors. Supply the **effective** invitation verification requirement from your auth configuration; it is required rather than guessed. In the example a shared `true` constant configures both Better Auth and the bridge. Account for Better Auth's generated/custom-ID defaults if your policy is implicit.
 
 The example sets `advanced.database.generateId: false` so Convex allocates database IDs. Its indexes include session expiry and invitation lookup indexes. Schema generation remains application-owned; regenerate after changing auth plugins/options.
 
@@ -344,7 +383,7 @@ The workflows replace supported-domain form state, action readiness, conflict gu
 Install the precompiled release:
 
 ```sh
-pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.7.2'
+pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.8.0'
 ```
 
 Release tags contain the ready-to-use package at the repository root: JavaScript, declarations, and source maps. Installation does not compile this library, install its development tooling, or require permission to run its build scripts. The application still bundles normally and supplies the documented peer dependencies and authentication/backend configuration.

@@ -21,9 +21,11 @@ export function dependencies(
       scope:
         endpoint === "listSessions"
           ? "sessions"
-          : endpoint === "listUserInvitations" || endpoint === "getInvitation"
-            ? "invitations"
-            : "directory",
+          : endpoint === "listPasskeys"
+            ? "passkeys"
+            : endpoint === "listUserInvitations" || endpoint === "getInvitation"
+              ? "invitations"
+              : "directory",
       subject: userId,
     },
   ];

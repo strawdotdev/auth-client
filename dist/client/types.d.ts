@@ -6,6 +6,7 @@ import type { SessionWorkflows } from "../workflows/sessions/types.js";
 import type { AuthenticationWorkflows, GuestSessionWorkflow } from "../workflows/authentication/types.js";
 import type { AccountWorkflows, CurrentUserBinding } from "../workflows/account/types.js";
 import type { AccountsWorkflows } from "../workflows/accounts/types.js";
+import type { PasskeyWorkflows } from "../workflows/passkeys/types.js";
 export type Endpoint = (...args: any[]) => Promise<unknown>;
 export interface SessionClient {
     useSession(): {
@@ -54,6 +55,20 @@ export type AccountsClient = AuthenticationClient & {
 export type GuestClient = AuthenticationClient & {
     signIn: {
         anonymous: Endpoint;
+    };
+};
+/**
+ * Better Auth's `passkeyClient()` (`@better-auth/passkey/client`) adds `signIn.passkey` and
+ * `passkey`, whose list and removal the plugin's endpoints name.
+ */
+export type PasskeyClient = AuthenticationClient & {
+    signIn: {
+        passkey: Endpoint;
+    };
+    passkey: {
+        addPasskey: Endpoint;
+        listUserPasskeys: Endpoint;
+        deletePasskey: Endpoint;
     };
 };
 export type AccountClient = AuthenticationClient & SessionsClient & {
@@ -127,6 +142,10 @@ export type OrganizationSurface<C extends OrganizationClient> = {
     }) => Result<Data<C["organization"]["getInvitation"]>>;
     organization: Pick<C["organization"], "create" | "update" | "delete" | "leave" | "inviteMember" | "cancelInvitation" | "acceptInvitation" | "rejectInvitation" | "removeMember" | "updateMemberRole">;
 };
+export type PasskeySurface<C extends PasskeyClient> = {
+    useListPasskeys: Hook<C["passkey"]["listUserPasskeys"]>;
+    passkey: Pick<C["passkey"], "addPasskey" | "deletePasskey">;
+};
 export type SessionSurface<C extends SessionsClient> = Pick<C, "revokeSession" | "revokeOtherSessions" | "revokeSessions"> & {
     useListSessions: Hook<C["listSessions"]>;
 };
@@ -149,6 +168,8 @@ export type AuthDataClient<C extends SessionClient, F extends Features, U extend
 } ? AccountWorkflows<C extends AccountClient ? C : never, U> : unknown) & (F extends {
     guests: true;
 } ? GuestSessionWorkflow : unknown) & (F extends {
+    passkeys: true;
+} ? PasskeySurface<C extends PasskeyClient ? C : never> & PasskeyWorkflows<C extends PasskeyClient ? C : never> : unknown) & (F extends {
     accounts: true;
 } ? AccountsWorkflows<C extends AccountsClient ? C : never, F extends {
     guests: true;
@@ -167,15 +188,22 @@ export type AuthDataClientConfig<C extends SessionClient, F extends Features, U 
     } ? AccountClient : unknown) & (F extends {
         guests: true;
     } ? GuestClient : unknown) & (F extends {
+        passkeys: true;
+    } ? PasskeyClient : unknown) & (F extends {
         accounts: true;
     } ? AccountsClient : unknown);
     api: InvalidationApi;
     /**
      * `guests` needs `authentication`: signing out returns the visitor to a guest. So does
-     * `accounts`: signing in adds an account and signing out leaves one.
+     * `accounts`: signing in adds an account and signing out leaves one. So does `passkeys`: a
+     * passkey signs in as a password does.
      */
     features: F & (F extends {
         guests: true;
+    } ? {
+        authentication: true;
+    } : unknown) & (F extends {
+        passkeys: true;
     } ? {
         authentication: true;
     } : unknown) & (F extends {

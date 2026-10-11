@@ -13,9 +13,18 @@ export type Features = {
    * one of them (Better Auth's `multiSession()` and `bearer()`, with `deviceAccounts()`).
    */
   accounts?: boolean;
+  /** Passkeys beside the password (Better Auth's `passkey()` plugin): signing in and managing them. */
+  passkeys?: boolean;
 };
 export type ResourceDependency = {
-  scope: "directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation";
+  scope:
+    | "directory"
+    | "organization"
+    | "profile"
+    | "invitations"
+    | "sessions"
+    | "invitation"
+    | "passkeys";
   subject: string;
   organizationId?: string;
 };

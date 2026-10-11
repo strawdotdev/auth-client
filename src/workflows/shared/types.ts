@@ -55,13 +55,17 @@ export type WorkflowOperation =
   | "signOut"
   | "signInAsGuest"
   | "switchAccount"
-  | "signOutAccount";
+  | "signOutAccount"
+  | "signInWithPasskey"
+  | "addPasskey"
+  | "deletePasskey";
 export type WorkflowPendingAction = {
   operation: WorkflowOperation;
   organizationId?: string;
   invitationId?: string;
   memberId?: string;
   sessionId?: string;
+  passkeyId?: string;
 };
 export type WorkflowActionState = {
   feedback: readonly WorkflowFeedback[];

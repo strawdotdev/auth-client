@@ -4,11 +4,11 @@ import type { lookup as componentLookup } from "./component.js";
 import type { Features, ResourceDependency } from "../signal-protocol.js";
 export declare const authSignalTables: {
     authSignals: import("convex/server").TableDefinition<import("convex/values").VObject<{
-        scope: "directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation";
+        scope: "directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation" | "passkeys";
         subject: string;
         revision: number;
     }, {
-        scope: import("convex/values").VUnion<"directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation", [import("convex/values").VLiteral<"directory", "required">, import("convex/values").VLiteral<"organization", "required">, import("convex/values").VLiteral<"profile", "required">, import("convex/values").VLiteral<"invitations", "required">, import("convex/values").VLiteral<"sessions", "required">, import("convex/values").VLiteral<"invitation", "required">], "required", never>;
+        scope: import("convex/values").VUnion<"directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation" | "passkeys", [import("convex/values").VLiteral<"directory", "required">, import("convex/values").VLiteral<"organization", "required">, import("convex/values").VLiteral<"profile", "required">, import("convex/values").VLiteral<"invitations", "required">, import("convex/values").VLiteral<"sessions", "required">, import("convex/values").VLiteral<"invitation", "required">, import("convex/values").VLiteral<"passkeys", "required">], "required", never>;
         subject: import("convex/values").VString<string, "required">;
         revision: import("convex/values").VFloat64<number, "required">;
     }, "required", "scope" | "subject" | "revision">, {
@@ -42,7 +42,7 @@ export declare function createSignalQueries<DataModel extends GenericDataModel =
     signals: import("convex/server").RegisteredQuery<"public", {
         dependencies: {
             organizationId?: string | undefined;
-            scope: "directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation";
+            scope: "directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation" | "passkeys";
             subject: string;
         }[];
     }, Promise<{

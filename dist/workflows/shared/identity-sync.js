@@ -7,9 +7,11 @@ const responseValue = (result) => {
 export function resultIdentity(result) {
     const row = asRecord(responseValue(result));
     const user = asRecord(row?.user);
+    // Email sign-in answers with the token; a passkey's with the session.
+    const token = row?.token ?? asRecord(row?.session)?.token;
     return {
         userId: typeof user?.id === "string" ? user.id : undefined,
-        token: typeof row?.token === "string" ? row.token : undefined,
+        token: typeof token === "string" ? token : undefined,
     };
 }
 export const textValue = (value) => (typeof value === "string" ? value : "");

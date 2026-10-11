@@ -367,7 +367,37 @@ export declare function createAuthenticationWorkflows(auth: AuthenticationClient
         reset: () => void;
     } & {
         feedback: import("../shared/types.js").WorkflowFeedback[];
+    }) | ((options: Options | undefined) => {
+        actions: {
+            signIn: {
+                run: () => Promise<import("../shared/types.js").WorkflowOutcome<{
+                    guestUserId?: string | undefined;
+                    userId: string;
+                    sessionId: string;
+                    outcome: "authenticated";
+                } | {
+                    outcome: "cancelled";
+                }>>;
+                isDisabled: boolean;
+                isPending: boolean;
+                disabledReason: import("../shared/types.js").WorkflowDisabledReason | null;
+            };
+        };
+        feedback: import("../shared/types.js").WorkflowFeedback[];
+        isPending: boolean;
+        diagnostics: {
+            pendingAction: import("../shared/types.js").WorkflowPendingAction | null;
+            error: import("../shared/types.js").WorkflowError | null;
+        };
+        reset: () => void;
+    } & {
+        feedback: import("../shared/types.js").WorkflowFeedback[];
     }) | null;
 };
+/**
+ * The ceremony ended without a passkey: the person closed the browser's prompt or it timed out (a
+ * `NotAllowedError`, passed through), another ceremony took its place, or the browser offers none.
+ */
+export declare function passkeyCancelled(cause: unknown): boolean;
 export {};
 //# sourceMappingURL=workflows.d.ts.map

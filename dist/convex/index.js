@@ -1,6 +1,6 @@
 import { defineTable, defineSchema, queryGeneric, internalMutationGeneric, } from "convex/server";
 import { v } from "convex/values";
-const scope = v.union(v.literal("directory"), v.literal("organization"), v.literal("profile"), v.literal("invitations"), v.literal("sessions"), v.literal("invitation"));
+const scope = v.union(v.literal("directory"), v.literal("organization"), v.literal("profile"), v.literal("invitations"), v.literal("sessions"), v.literal("invitation"), v.literal("passkeys"));
 export const authSignalTables = {
     authSignals: defineTable({ scope, subject: v.string(), revision: v.number() }).index("scope_subject", ["scope", "subject"]),
 };
@@ -45,6 +45,7 @@ export function createSignalQueries(options) {
                 features: v.object({
                     organization: v.optional(v.boolean()),
                     sessions: v.optional(v.boolean()),
+                    passkeys: v.optional(v.boolean()),
                 }),
                 userId: v.string(),
                 denied: v.boolean(),
@@ -64,11 +65,12 @@ export function createSignalQueries(options) {
                 const lookup = (args) => ctx.runQuery(options.lookup, args);
                 for (const dep of dependencies) {
                     if ((dep.scope === "sessions" && !options.features.sessions) ||
-                        (dep.scope !== "sessions" && !options.features.organization))
+                        (dep.scope === "passkeys" && !options.features.passkeys) ||
+                        (dep.scope !== "sessions" && dep.scope !== "passkeys" && !options.features.organization))
                         throw new Error("Disabled reactive capability");
                     let allowed = false;
                     const related = [];
-                    if (["directory", "invitations", "sessions"].includes(dep.scope))
+                    if (["directory", "invitations", "sessions", "passkeys"].includes(dep.scope))
                         allowed = dep.subject === userId;
                     if (dep.scope === "organization") {
                         let organizationId = dep.subject;
@@ -168,6 +170,8 @@ export function createSignalTriggers(options) {
             }
             if (table === "session")
                 add("sessions", item.userId);
+            if (table === "passkey")
+                add("passkeys", item.userId);
         }
         for (const dep of deps.values())
             await markSignal(ctx, dep);
@@ -184,6 +188,18 @@ export function createSignalTriggers(options) {
                     throw new Error("Session is missing its userId");
                 await ctx.scheduler.runAfter(0, options.markSessionsChanged, { userId: doc.userId });
             },
+        };
+    if (options.features.passkeys)
+        result.passkey = {
+            onCreate: change("passkey"),
+            onUpdate: change("passkey"),
+            onDelete: change("passkey"),
+        };
+    if (options.features.passkeys)
+        result.passkey = {
+            onCreate: change("passkey"),
+            onUpdate: change("passkey"),
+            onDelete: change("passkey"),
         };
     return result;
 }

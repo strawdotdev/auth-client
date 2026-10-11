@@ -35,13 +35,14 @@ export type WorkflowFeedback = {
 export type WorkflowFeedbackOptions = {
     onError?: (feedback: Omit<WorkflowFeedback, "recovery">) => void;
 };
-export type WorkflowOperation = "select" | "create" | "update" | "leave" | "delete" | "invite" | "resend" | "accept" | "reject" | "cancel" | "updateMemberRole" | "removeMember" | "revokeSession" | "revokeOtherSessions" | "revokeSessions" | "signIn" | "signUp" | "requestPasswordReset" | "resetPassword" | "sendVerificationEmail" | "updateProfile" | "updateProfileImage" | "changeEmail" | "changePassword" | "reauthenticate" | "signOut" | "signInAsGuest" | "switchAccount" | "signOutAccount";
+export type WorkflowOperation = "select" | "create" | "update" | "leave" | "delete" | "invite" | "resend" | "accept" | "reject" | "cancel" | "updateMemberRole" | "removeMember" | "revokeSession" | "revokeOtherSessions" | "revokeSessions" | "signIn" | "signUp" | "requestPasswordReset" | "resetPassword" | "sendVerificationEmail" | "updateProfile" | "updateProfileImage" | "changeEmail" | "changePassword" | "reauthenticate" | "signOut" | "signInAsGuest" | "switchAccount" | "signOutAccount" | "signInWithPasskey" | "addPasskey" | "deletePasskey";
 export type WorkflowPendingAction = {
     operation: WorkflowOperation;
     organizationId?: string;
     invitationId?: string;
     memberId?: string;
     sessionId?: string;
+    passkeyId?: string;
 };
 export type WorkflowActionState = {
     feedback: readonly WorkflowFeedback[];

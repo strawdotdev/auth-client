@@ -8,6 +8,7 @@ import { createAuthenticationWorkflows } from "../workflows/authentication/workf
 import { createAccountWorkflows } from "../workflows/account/workflows.js";
 import { createGuestSession } from "../workflows/authentication/guest.js";
 import { createAccountsWorkflows } from "../workflows/accounts/workflows.js";
+import { createPasskeyWorkflows } from "../workflows/passkeys/workflows.js";
 export function createAuthDataClient(config) {
     const runtime = new CacheRuntime(config.authClient, config.api, Object.freeze({ ...config.features }));
     const client = {
@@ -73,6 +74,17 @@ export function createAuthDataClient(config) {
         if (!config.features.authentication)
             throw new Error("The guests capability requires the authentication capability");
         Object.assign(client, createGuestSession(auth, runtime, config.hasStoredSession));
+    }
+    if (config.features.passkeys) {
+        if (!config.features.authentication)
+            throw new Error("The passkeys capability requires the authentication capability");
+        const passkeys = config.authClient.passkey;
+        client.useListPasskeys = (query, options) => useCachedResource(runtime, "listPasskeys", passkeys.listUserPasskeys, query, options);
+        client.passkey = {
+            addPasskey: write(passkeys.addPasskey, ["listPasskeys"]),
+            deletePasskey: write(passkeys.deletePasskey, ["listPasskeys"]),
+        };
+        Object.assign(client, createPasskeyWorkflows(client, runtime));
     }
     if (config.features.authentication)
         Object.assign(client, createAuthenticationWorkflows(auth, runtime));

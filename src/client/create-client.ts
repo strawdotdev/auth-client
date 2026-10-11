@@ -8,6 +8,7 @@ import type {
   Endpoint,
   GuestClient,
   AccountsClient,
+  PasskeyClient,
 } from "./types.js";
 import { CacheRuntime } from "../cache/query-cache.js";
 import { useCachedResource } from "../cache/use-cached-resource.js";
@@ -25,6 +26,7 @@ import { createAuthenticationWorkflows } from "../workflows/authentication/workf
 import { createAccountWorkflows } from "../workflows/account/workflows.js";
 import { createGuestSession } from "../workflows/authentication/guest.js";
 import { createAccountsWorkflows, type AccountsReads } from "../workflows/accounts/workflows.js";
+import { createPasskeyWorkflows, type PasskeyReads } from "../workflows/passkeys/workflows.js";
 export function createAuthDataClient<
   C extends SessionClient,
   F extends Features,
@@ -109,6 +111,18 @@ export function createAuthDataClient<
     if (!config.features.authentication)
       throw new Error("The guests capability requires the authentication capability");
     Object.assign(client, createGuestSession(auth, runtime, config.hasStoredSession));
+  }
+  if (config.features.passkeys) {
+    if (!config.features.authentication)
+      throw new Error("The passkeys capability requires the authentication capability");
+    const passkeys = (config.authClient as unknown as PasskeyClient).passkey;
+    client.useListPasskeys = (query?: Record<string, unknown>, options?: { enabled?: boolean }) =>
+      useCachedResource(runtime, "listPasskeys", passkeys.listUserPasskeys, query, options);
+    client.passkey = {
+      addPasskey: write(passkeys.addPasskey, ["listPasskeys"]),
+      deletePasskey: write(passkeys.deletePasskey, ["listPasskeys"]),
+    };
+    Object.assign(client, createPasskeyWorkflows(client as unknown as PasskeyReads, runtime));
   }
   if (config.features.authentication)
     Object.assign(client, createAuthenticationWorkflows(auth, runtime));
