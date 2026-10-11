@@ -44,7 +44,7 @@ function device(...signedIn: Session[]) {
   let cookie = accounts.at(-1)?.session.token;
   let chosen: string | undefined;
   let observed = current();
-  let failRefresh = false;
+  let failRefresh: number | undefined;
   let revision = 0;
   const listeners = new Set<() => void>();
   convexAuthenticated = Boolean(observed);
@@ -75,8 +75,8 @@ function device(...signedIn: Session[]) {
         isPending: false,
         refetch: async () => {
           settle();
-          if (failRefresh) {
-            failRefresh = false;
+          if (failRefresh !== undefined && failRefresh-- === 0) {
+            failRefresh = undefined;
             throw new Error("session read failed");
           }
           return { data: observed, error: null };
@@ -134,8 +134,9 @@ function device(...signedIn: Session[]) {
     get signedIn() {
       return accounts.map(({ user }) => user.id);
     },
-    failNextRefresh() {
-      failRefresh = true;
+    /** Fails the session read after `skip` more succeed. */
+    failNextRefresh(skip = 0) {
+      failRefresh = skip;
     },
   };
 }
@@ -221,6 +222,10 @@ it("signs this context out of its account only, moving on to the device's next",
     expect.anything(),
   );
   expect(model.auth.signOut).not.toHaveBeenCalled();
+  // The context moved on to alice before bob's session went.
+  expect(model.auth.deviceAccounts.select.mock.invocationCallOrder[0]).toBeLessThan(
+    model.auth.multiSession.revoke.mock.invocationCallOrder[0]!,
+  );
   expect(model.signedIn).toEqual(["alice"]);
   expect(model.current).toBe("alice");
   expect(onSignedOut).toHaveBeenCalledOnce();
@@ -262,7 +267,8 @@ it("recovers signing out of this context's account without revoking twice", asyn
   const { model, client, wrapper } = fixture({}, alice, bob);
   const hook = renderHook(() => client.useAccounts(), { wrapper });
   await waitFor(() => expect(hook.result.current.data).toHaveLength(2));
-  model.failNextRefresh();
+  // Signing out moves the context on (one read), then synchronizes (the read that fails).
+  model.failNextRefresh(1);
   await act(async () => {
     expect(await hook.result.current.account("bob").signOut.run()).toMatchObject({
       status: "error",
@@ -300,4 +306,16 @@ it("leaves a guest only when no other account remains on the device", async () =
   });
   expect(shared.model.auth.signIn.anonymous).not.toHaveBeenCalled();
   expect(shared.model.current).toBe("alice");
+});
+
+it("signs the device's last account out with Better Auth's sign-out", async () => {
+  const { model, client, wrapper } = fixture({}, alice);
+  const hook = renderHook(() => client.useSignOut(), { wrapper });
+  await waitFor(() => expect(hook.result.current.actions.signOut.isDisabled).toBe(false));
+  await act(async () => {
+    expect((await hook.result.current.actions.signOut.run()).status).toBe("success");
+  });
+  expect(model.auth.signOut).toHaveBeenCalledOnce();
+  expect(model.auth.multiSession.revoke).not.toHaveBeenCalled();
+  expect(model.current).toBeUndefined();
 });

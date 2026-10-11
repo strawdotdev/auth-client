@@ -1,5 +1,20 @@
 # Verification
 
+## v0.7.2 — 2026-10-11
+
+With accounts, signing a tab out of its account first moves the tab on to another of the device's
+(an account before a guest), then revokes the old one, so the tab's Convex queries never run as a
+signed-out account; the device's last account signs out through Better Auth's sign-out. Before,
+the revocation briefly failed the tab's `getAuthUser`-backed queries with `Unauthenticated`.
+Compatible.
+
+- `pnpm verify`, `pnpm test:package` and `pnpm test:git` pass. Tests pin the order (move on,
+  then revoke) and the last account's sign-out.
+- `pnpm test:e2e` (local backend, two origins): all eleven journeys passed in 5.7 minutes, with
+  the three fixture-helper journeys run without `--deployment local` as for v0.7.0. Clearing the tab's session before the last account's sign-out (as
+  `crossDomainClient()` does) was tried and dropped: with a real cookie, reads in flight brought
+  the account back, and the guest and session-freshness journeys failed.
+
 ## v0.7.1 — 2026-10-11
 
 A tab whose account was signed out elsewhere left its session hook on the gone account when the
