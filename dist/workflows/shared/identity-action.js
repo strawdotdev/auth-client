@@ -159,9 +159,10 @@ function isAvailable(runtime, availability, enabled, disposed, view) {
         return false;
     if (availability === "settled")
         return true;
-    // A guest (Better Auth anonymous user) signs in or up from their session and is linked.
+    // A guest (Better Auth anonymous user) signs in or up from their session and is linked; with
+    // accounts, signing in from an account adds another.
     if (availability === "guest")
-        return !observation.userId || observation.isAnonymous;
+        return !observation.userId || observation.isAnonymous || Boolean(runtime.features.accounts);
     if (guestRequiresAccount(runtime, availability))
         return false;
     if (availability === "session")
@@ -322,6 +323,29 @@ export function useIdentityAction(runtime, scope, availability, enabled = true, 
         isBusy: view?.pending != null,
         pendingAction: view?.pending ?? null,
         error: view?.error ?? null,
+    };
+}
+function recoveryFeedback(action, target, recovery, hasReceipt) {
+    const error = action.error;
+    return hasReceipt && error?.writeSucceeded
+        ? [{ target, error: error.cause, diagnostics: error, recovery }]
+        : [];
+}
+function preserveRecoveryReset(state, pending) {
+    return pending ? { ...state, reset() { } } : state;
+}
+/** An identity workflow's feedback, with read-only recovery once its write succeeded. */
+export function withRecoveryFeedback(state, action, target, recovery, hasReceipt) {
+    return preserveRecoveryReset({
+        ...state,
+        feedback: action.feedback(recoveryFeedback(action, target, recovery, hasReceipt)),
+    }, hasReceipt);
+}
+/** Finishes a written identity operation again (synchronization, cleanup) without its write. */
+export function recoveryAction(action, target, finish) {
+    return {
+        ...action.control(target),
+        run: () => action.run(target, finish, true),
     };
 }
 //# sourceMappingURL=identity-action.js.map

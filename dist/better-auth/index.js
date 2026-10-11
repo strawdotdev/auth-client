@@ -1,0 +1,131 @@
+import { createAuthEndpoint, createAuthMiddleware } from "better-auth/api";
+import { parseCookies, setSessionCookie } from "better-auth/cookies";
+import { parseSessionOutput, parseUserOutput } from "better-auth/db";
+/**
+ * Every account signed in on this device, from the multi-session plugin's cookies: the server half
+ * of the client's accounts. Needs Better Auth's `multiSession()` and, for each context (a browser
+ * tab) to act as its own account, `bearer()`. With the organization plugin, each account carries
+ * its organizations and its role in each, so a switcher can show them without signing in as each.
+ *
+ * `GET /device-accounts/list` answers as `listDeviceSessions` does (one entry per user, the newest
+ * sign-in last), each entry adding `organizations`.
+ *
+ * The device's session cookie keeps naming an account while one remains. When a context signs out
+ * the device's current account while acting as another (multi-session moves the device on only
+ * when the two are the same), the acting account becomes the device's. A session read for a
+ * context's own account that finds it gone (signed out elsewhere) leaves the device's cookies as
+ * they are: Better Auth would clear them, taking the device's own account with it. A guest (the
+ * anonymous plugin) who signs in or up leaves the device's accounts, linked to the account.
+ */
+export const deviceAccounts = (options = {}) => ({
+    id: "device-accounts",
+    hooks: {
+        after: [
+            {
+                matcher: (context) => context.path === "/multi-session/revoke",
+                handler: createAuthMiddleware(async (ctx) => {
+                    const revoked = ctx.body?.sessionToken;
+                    const acting = ctx.context.session;
+                    if (typeof revoked !== "string" || !acting || acting.session.token === revoked)
+                        return;
+                    // The device's own cookie, as sent: bearer() has put the acting session in its place.
+                    const sent = parseCookies(ctx.request?.headers.get("cookie") ?? "").get(ctx.context.authCookies.sessionToken.name);
+                    if (!sent || decodeURIComponent(sent).split(".")[0] !== revoked)
+                        return;
+                    await setSessionCookie(ctx, acting);
+                }),
+            },
+            {
+                // A guest who signs in or up is linked to the account (the anonymous plugin), so it
+                // leaves the device's accounts; apps that keep its user (disableDeleteAnonymousUser)
+                // forget the user themselves.
+                matcher: () => true,
+                handler: createAuthMiddleware(async (ctx) => {
+                    const created = ctx.context.newSession;
+                    if (!created)
+                        return;
+                    const authorization = ctx.request?.headers.get("authorization") ?? "";
+                    const name = ctx.context.authCookies.sessionToken.name;
+                    const sent = /^bearer /i.test(authorization)
+                        ? authorization.slice(7).trim()
+                        : parseCookies(ctx.request?.headers.get("cookie") ?? "").get(name);
+                    const token = sent && decodeURIComponent(sent).split(".")[0];
+                    if (!token || token === created.session.token)
+                        return;
+                    const previous = await ctx.context.internalAdapter.findSession(token);
+                    const user = previous?.user;
+                    if (!user?.isAnonymous || user.id === created.user.id)
+                        return;
+                    await ctx.context.internalAdapter.deleteSession(token);
+                    ctx.setCookie(`${name}_multi-${token.toLowerCase()}`, "", {
+                        ...ctx.context.authCookies.sessionToken.attributes,
+                        maxAge: 0,
+                    });
+                }),
+            },
+            {
+                matcher: (context) => context.path === "/get-session",
+                handler: createAuthMiddleware(async (ctx) => {
+                    if (!ctx.request?.headers.has("authorization") || ctx.context.returned)
+                        return;
+                    ctx.context.responseHeaders?.delete("set-cookie");
+                }),
+            },
+        ],
+    },
+    endpoints: {
+        listDeviceAccounts: createAuthEndpoint("/device-accounts/list", { method: "GET", requireHeaders: true }, async (ctx) => {
+            const cookies = parseCookies(ctx.headers?.get("cookie") ?? "");
+            const tokens = (await Promise.all([...cookies.keys()]
+                .filter((key) => key.includes("_multi-"))
+                .map((key) => ctx.getSignedCookie(key, ctx.context.secret)))).filter((token) => typeof token === "string");
+            const now = new Date();
+            const found = tokens.length
+                ? await ctx.context.internalAdapter.findSessions(tokens, { onlyActiveSessions: true })
+                : [];
+            const byUser = new Map();
+            for (const entry of found
+                .filter(({ session }) => session.expiresAt > now)
+                .sort((a, b) => +a.session.createdAt - +b.session.createdAt))
+                byUser.set(entry.user.id, entry);
+            const accounts = [...byUser.values()];
+            const memberships = ctx.context.hasPlugin("organization")
+                ? await organizationsOf(ctx.context.adapter, accounts.map(({ user }) => user.id))
+                : new Map();
+            if (options.organizations)
+                for (const [userId, organizations] of memberships)
+                    memberships.set(userId, await options.organizations(userId, organizations));
+            return ctx.json(accounts.map(({ session, user }) => ({
+                session: parseSessionOutput(ctx.context.options, session),
+                user: parseUserOutput(ctx.context.options, user),
+                organizations: memberships.get(user.id) ?? [],
+            })));
+        }),
+    },
+});
+async function organizationsOf(adapter, userIds) {
+    const result = new Map();
+    if (!userIds.length)
+        return result;
+    const members = await adapter.findMany({
+        model: "member",
+        where: [{ field: "userId", operator: "in", value: userIds }],
+    });
+    const ids = [...new Set(members.map((member) => member.organizationId))];
+    const organizations = ids.length
+        ? await adapter.findMany({
+            model: "organization",
+            where: [{ field: "id", operator: "in", value: ids }],
+        })
+        : [];
+    const byId = new Map(organizations.map((organization) => [organization.id, organization]));
+    for (const { organizationId, userId, role } of members) {
+        const organization = byId.get(organizationId);
+        if (!organization)
+            continue;
+        const { id, name, slug, logo } = organization;
+        result.set(userId, [...(result.get(userId) ?? []), { id, name, slug, logo, role }]);
+    }
+    return result;
+}
+//# sourceMappingURL=index.js.map

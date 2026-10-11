@@ -7,6 +7,7 @@ import { createSessionWorkflows } from "../workflows/sessions/workflows.js";
 import { createAuthenticationWorkflows } from "../workflows/authentication/workflows.js";
 import { createAccountWorkflows } from "../workflows/account/workflows.js";
 import { createGuestSession } from "../workflows/authentication/guest.js";
+import { createAccountsWorkflows } from "../workflows/accounts/workflows.js";
 export function createAuthDataClient(config) {
     const runtime = new CacheRuntime(config.authClient, config.api, Object.freeze({ ...config.features }));
     const client = {
@@ -77,6 +78,13 @@ export function createAuthDataClient(config) {
         Object.assign(client, createAuthenticationWorkflows(auth, runtime));
     if (config.features.account)
         Object.assign(client, createAccountWorkflows(auth, runtime, config.currentUser));
+    if (config.features.accounts) {
+        if (!config.features.authentication)
+            throw new Error("The accounts capability requires the authentication capability");
+        const accounts = config.authClient;
+        client.useDeviceAccounts = (query, options) => useCachedResource(runtime, "listDeviceAccounts", accounts.deviceAccounts.list, query, options);
+        Object.assign(client, createAccountsWorkflows(accounts, runtime, client));
+    }
     runtimeByClient.set(client, runtime);
     // Only the explicitly selected capabilities are assembled above. TypeScript
     // cannot narrow generic F from runtime booleans; retain C's exact signatures.

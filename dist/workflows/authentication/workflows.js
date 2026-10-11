@@ -1,7 +1,7 @@
 import { looseObject, string } from "zod";
 import { getActionState, getAuthErrorCode, requireAvailable, } from "../shared/action.js";
 import { useWorkflowForm } from "../shared/form.js";
-import { useIdentityAction } from "../shared/identity-action.js";
+import { recoveryAction, useIdentityAction, withRecoveryFeedback, } from "../shared/identity-action.js";
 import { identityOperationObsolete, resultIdentity, synchronizeAuthenticated, textValue, } from "../shared/identity-sync.js";
 import { defineSchemaWorkflow, defineWorkflow, exposeWorkflow } from "../shared/root.js";
 import { guestSession } from "./guest.js";
@@ -15,44 +15,62 @@ const signUpMinimum = looseObject({
 const emailMinimum = looseObject({ email: required });
 const resetMinimum = looseObject({ newPassword: required });
 const secretFields = ["password", "confirmPassword", "currentPassword", "newPassword"];
-async function synchronizeSignedOut(runtime, transaction, original, guests) {
+export async function synchronizeSignedOut(runtime, transaction, original, guests) {
     transaction.phase("synchronization");
     await runtime.refreshSession();
-    // With guests, the new guest is the expected identity; any other account is unrelated.
+    // With guests, the new guest is the expected identity; with accounts, so is any other account
+    // the device keeps (the context moves on to it). Otherwise any other account is unrelated.
     const isNewGuest = (state) => guests && state.isAnonymous && state.userId !== original.userId;
-    await runtime.waitForAuth((state) => guests
-        ? state.ready && isNewGuest(state)
-        : !state.sessionPending &&
-            !state.userId &&
-            !state.convexLoading &&
-            !state.convexAuthenticated, transaction.signal, 10_000, (state) => state.userId &&
+    const isOtherAccount = (state) => Boolean(runtime.features.accounts && state.userId && state.userId !== original.userId);
+    await runtime.waitForAuth((state) => isOtherAccount(state)
+        ? state.ready
+        : guests
+            ? state.ready && isNewGuest(state)
+            : !state.sessionPending &&
+                !state.userId &&
+                !state.convexLoading &&
+                !state.convexAuthenticated, transaction.signal, 10_000, (state) => state.userId &&
         !isNewGuest(state) &&
+        !isOtherAccount(state) &&
         (state.userId !== original.userId || state.sessionId !== original.sessionId)
         ? identityOperationObsolete
         : undefined);
 }
-function recoveryFeedback(action, target, recovery, hasReceipt) {
-    const error = action.error;
-    return hasReceipt && error?.writeSucceeded
-        ? [{ target, error: error.cause, diagnostics: error, recovery }]
-        : [];
+/**
+ * Signs this context out of its own account. With accounts, that is the one account (the
+ * multi-session plugin revokes it; the others stay signed in and the context moves on to the
+ * device's next one); otherwise Better Auth's sign-out.
+ */
+export async function signOutContext(auth, runtime) {
+    if (!runtime.features.accounts)
+        return call(auth.signOut, {});
+    const accounts = auth;
+    const sessionToken = runtime.authObservation.sessionToken;
+    requireAvailable(sessionToken);
+    await call(accounts.multiSession.revoke, { sessionToken });
+    accounts.deviceAccounts.select(null);
 }
-function preserveRecoveryReset(state, pending) {
-    return pending ? { ...state, reset() { } } : state;
+const call = (endpoint, values) => endpoint(values, { throw: true, retry: 0 });
+/**
+ * Leaves the context's account after its sign-out was written: with guests, a fresh guest unless
+ * the context moved on to another of the device's accounts; then waits for the identity it lands on.
+ */
+export async function leaveSession(runtime, receipt, transaction) {
+    const guests = guestSession(runtime);
+    if (guests && receipt.stage === "guest") {
+        transaction.phase("cleanup");
+        if (runtime.features.accounts)
+            await runtime.refreshSession();
+        const { userId, isAnonymous } = runtime.authObservation;
+        const onAnother = runtime.features.accounts && userId && userId !== receipt.original.userId;
+        // The provider may already have made the signed-out visitor a guest.
+        if (!onAnother && (!isAnonymous || userId === receipt.original.userId))
+            await guests.ensure();
+        receipt.stage = "synchronization";
+    }
+    await synchronizeSignedOut(runtime, transaction, receipt.original, guests !== undefined);
 }
-function withRecoveryFeedback(state, action, target, recovery, hasReceipt) {
-    return preserveRecoveryReset({
-        ...state,
-        feedback: action.feedback(recoveryFeedback(action, target, recovery, hasReceipt)),
-    }, hasReceipt);
-}
-function recoveryAction(action, target, finish) {
-    return {
-        ...action.control(target),
-        run: () => action.run(target, finish, true),
-    };
-}
-function observedIdentity(runtime) {
+export function observedIdentity(runtime) {
     const { userId, sessionId, isAnonymous } = runtime.authObservation;
     return { userId, sessionId, isAnonymous };
 }
@@ -61,22 +79,15 @@ function departingGuest(runtime) {
     const { userId, isAnonymous } = runtime.authObservation;
     return isAnonymous ? userId : undefined;
 }
+/** The identity a sign-in or sign-up leaves: a guest's, or with accounts the account beside it. */
+function departingIdentity(runtime) {
+    const { userId, sessionToken } = runtime.authObservation;
+    return { userId, token: sessionToken };
+}
 export function createAuthenticationWorkflows(auth, runtime) {
     const receipts = new Map();
-    const call = (endpoint, values) => endpoint(values, { throw: true, retry: 0 });
     const guests = guestSession(runtime);
     const afterSignOut = guests ? "guest" : "synchronization";
-    async function leaveSession(receipt, transaction) {
-        if (guests && receipt.stage === "guest") {
-            transaction.phase("cleanup");
-            const { userId, isAnonymous } = runtime.authObservation;
-            // The provider may already have made the signed-out visitor a guest.
-            if (!isAnonymous || userId === receipt.original.userId)
-                await guests.ensure();
-            receipt.stage = "synchronization";
-        }
-        await synchronizeSignedOut(runtime, transaction, receipt.original, guests !== undefined);
-    }
     function useReceiptAction(scope, availability, options) {
         const action = useIdentityAction(runtime, scope, availability, options.enabled !== false, options, { onRetire: () => receipts.delete(scope) });
         return { action, receipt: receipts.get(scope) };
@@ -85,9 +96,7 @@ export function createAuthenticationWorkflows(auth, runtime) {
         const receipt = receipts.get(scope);
         requireAvailable(receipt?.kind === kind);
         const { guestUserId } = receipt;
-        const identity = await synchronizeAuthenticated(runtime, transaction, receipt.expected, {
-            userId: guestUserId,
-        });
+        const identity = await synchronizeAuthenticated(runtime, transaction, receipt.expected, receipt.previous);
         receipts.delete(scope);
         const completion = {
             outcome: "authenticated",
@@ -116,10 +125,12 @@ export function createAuthenticationWorkflows(auth, runtime) {
             write: async (values, transaction) => {
                 try {
                     const guestUserId = departingGuest(runtime);
+                    const previous = departingIdentity(runtime);
                     const result = await transaction.write(() => call(auth.signIn.email, values));
                     receipts.set("sign-in", {
                         kind: "signIn",
                         expected: resultIdentity(result),
+                        previous,
                         guestUserId,
                     });
                     return finish(transaction);
@@ -150,13 +161,14 @@ export function createAuthenticationWorkflows(auth, runtime) {
             write: async (values, transaction) => {
                 const callbackURL = textValue(options.callbackURL) || undefined;
                 const guestUserId = departingGuest(runtime);
+                const previous = departingIdentity(runtime);
                 const result = await transaction.write(() => call(auth.signUp.email, {
                     ...values,
                     ...(callbackURL ? { callbackURL } : {}),
                 }));
                 const expected = resultIdentity(result);
                 if (expected.token) {
-                    receipts.set("sign-up", { kind: "signUp", expected, guestUserId });
+                    receipts.set("sign-up", { kind: "signUp", expected, previous, guestUserId });
                     return finish(transaction);
                 }
                 const completion = {
@@ -199,11 +211,11 @@ export function createAuthenticationWorkflows(auth, runtime) {
             const signsOut = options.signOutAfterReset !== false && !current.original.isAnonymous;
             if (signsOut && current.stage === "signOut") {
                 transaction.phase("cleanup");
-                await call(auth.signOut, {});
+                await signOutContext(auth, runtime);
                 current.stage = afterSignOut;
             }
             if (signsOut)
-                await leaveSession(current, transaction);
+                await leaveSession(runtime, current, transaction);
             receipts.delete(scope);
             const completion = { outcome: "reset" };
             await transaction.complete(() => options.onReset?.(completion));
@@ -235,7 +247,7 @@ export function createAuthenticationWorkflows(auth, runtime) {
         const finish = async (transaction) => {
             const current = receipts.get(scope);
             requireAvailable(current?.kind === "signOut");
-            await leaveSession(current, transaction);
+            await leaveSession(runtime, current, transaction);
             receipts.delete(scope);
             const completion = { outcome: "signedOut" };
             await transaction.complete(() => options.onSignedOut?.(completion));
@@ -252,7 +264,7 @@ export function createAuthenticationWorkflows(auth, runtime) {
                         ? Promise.resolve({ status: "ignored", reason: "disabled" })
                         : action.run(target, async (transaction) => {
                             const original = observedIdentity(runtime);
-                            await transaction.write(() => call(auth.signOut, {}));
+                            await transaction.write(() => signOutContext(auth, runtime));
                             receipts.set(scope, { kind: "signOut", stage: afterSignOut, original });
                             return finish(transaction);
                         }),

@@ -13,6 +13,7 @@ import {
 } from "./action.js";
 import { identityOperationObsolete } from "./identity-sync.js";
 import type {
+  WorkflowAction,
   WorkflowDisabledReason,
   WorkflowError,
   WorkflowFeedback,
@@ -203,8 +204,10 @@ function isAvailable(
   if (viewHasRecovery(view)) return true;
   if (observation.sessionPending) return false;
   if (availability === "settled") return true;
-  // A guest (Better Auth anonymous user) signs in or up from their session and is linked.
-  if (availability === "guest") return !observation.userId || observation.isAnonymous;
+  // A guest (Better Auth anonymous user) signs in or up from their session and is linked; with
+  // accounts, signing in from an account adds another.
+  if (availability === "guest")
+    return !observation.userId || observation.isAnonymous || Boolean(runtime.features.accounts);
   if (guestRequiresAccount(runtime, availability)) return false;
   if (availability === "session") return Boolean(observation.userId && observation.sessionId);
   return observation.ready;
@@ -429,5 +432,49 @@ export function useIdentityAction(
     isBusy: view?.pending != null,
     pendingAction: view?.pending ?? null,
     error: view?.error ?? null,
+  };
+}
+
+function recoveryFeedback(
+  action: WorkflowActionController,
+  target: WorkflowPendingAction,
+  recovery: WorkflowAction,
+  hasReceipt: boolean,
+): WorkflowFeedback[] {
+  const error = action.error;
+  return hasReceipt && error?.writeSucceeded
+    ? [{ target, error: error.cause, diagnostics: error, recovery }]
+    : [];
+}
+function preserveRecoveryReset<T extends { reset(): void }>(state: T, pending: boolean): T {
+  return pending ? { ...state, reset() {} } : state;
+}
+
+/** An identity workflow's feedback, with read-only recovery once its write succeeded. */
+export function withRecoveryFeedback<T extends { reset(): void }>(
+  state: T,
+  action: WorkflowActionController,
+  target: WorkflowPendingAction,
+  recovery: WorkflowAction,
+  hasReceipt: boolean,
+) {
+  return preserveRecoveryReset(
+    {
+      ...state,
+      feedback: action.feedback(recoveryFeedback(action, target, recovery, hasReceipt)),
+    },
+    hasReceipt,
+  );
+}
+
+/** Finishes a written identity operation again (synchronization, cleanup) without its write. */
+export function recoveryAction(
+  action: WorkflowActionController,
+  target: WorkflowPendingAction,
+  finish: (transaction: ActionExecution) => Promise<unknown>,
+): WorkflowAction {
+  return {
+    ...action.control(target),
+    run: () => action.run(target, finish, true),
   };
 }

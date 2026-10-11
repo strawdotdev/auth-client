@@ -7,6 +7,8 @@ function targets(action, generation) {
         "resetPassword",
         "reauthenticate",
         "signOut",
+        "switchAccount",
+        "signOutAccount",
     ].includes(action.operation);
     add("identity", "current", identityTransition, true);
     if ([

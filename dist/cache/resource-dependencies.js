@@ -33,6 +33,14 @@ export function dependencies(endpoint, query, data, userId) {
         for (const org of rows(data))
             if (typeof org.id === "string")
                 result.push({ scope: "organization", subject: org.id });
+    // The device's accounts: only this context's own organizations can be watched (the signals are
+    // its account's); the other accounts' refresh with every read.
+    if (endpoint === "listDeviceAccounts")
+        for (const account of rows(data))
+            if (record(account.user).id === userId)
+                for (const org of rows(account.organizations))
+                    if (typeof org.id === "string")
+                        result.push({ scope: "organization", subject: org.id });
     for (const member of rows(payload.members))
         if (typeof member.userId === "string" && organizationId)
             result.push({ scope: "profile", subject: member.userId, organizationId });

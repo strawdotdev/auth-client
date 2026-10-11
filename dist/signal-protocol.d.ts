@@ -7,6 +7,11 @@ export type Features = {
     account?: boolean;
     /** Client-only: keep a Better Auth anonymous session for every visitor. */
     guests?: boolean;
+    /**
+     * Client-only: several accounts signed in on one device, each context (a browser tab) acting as
+     * one of them (Better Auth's `multiSession()` and `bearer()`, with `deviceAccounts()`).
+     */
+    accounts?: boolean;
 };
 export type ResourceDependency = {
     scope: "directory" | "organization" | "profile" | "invitations" | "sessions" | "invitation";
