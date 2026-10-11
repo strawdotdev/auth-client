@@ -9,6 +9,17 @@ type Organization = { id: string; name: string; slug: string; logo?: string | nu
 /** An organization a device account belongs to, with its role there. */
 export type DeviceAccountOrganization = Organization & { role: string };
 
+export type DeviceAccountsOptions = {
+  /**
+   * Filters and orders an account's organizations as the application shows them, such as hiding
+   * those being deleted or putting a personal one first. Runs on the server for each account.
+   */
+  organizations?: (
+    userId: string,
+    organizations: DeviceAccountOrganization[],
+  ) => DeviceAccountOrganization[] | Promise<DeviceAccountOrganization[]>;
+};
+
 /**
  * Every account signed in on this device, from the multi-session plugin's cookies: the server half
  * of the client's accounts. Needs Better Auth's `multiSession()` and, for each context (a browser
@@ -22,9 +33,10 @@ export type DeviceAccountOrganization = Organization & { role: string };
  * the device's current account while acting as another (multi-session moves the device on only
  * when the two are the same), the acting account becomes the device's. A session read for a
  * context's own account that finds it gone (signed out elsewhere) leaves the device's cookies as
- * they are: Better Auth would clear them, taking the device's own account with it.
+ * they are: Better Auth would clear them, taking the device's own account with it. A guest (the
+ * anonymous plugin) who signs in or up leaves the device's accounts, linked to the account.
  */
-export const deviceAccounts = () =>
+export const deviceAccounts = (options: DeviceAccountsOptions = {}) =>
   ({
     id: "device-accounts",
     hooks: {
@@ -41,6 +53,31 @@ export const deviceAccounts = () =>
             );
             if (!sent || decodeURIComponent(sent).split(".")[0] !== revoked) return;
             await setSessionCookie(ctx, acting);
+          }),
+        },
+        {
+          // A guest who signs in or up is linked to the account (the anonymous plugin), so it
+          // leaves the device's accounts; apps that keep its user (disableDeleteAnonymousUser)
+          // forget the user themselves.
+          matcher: () => true,
+          handler: createAuthMiddleware(async (ctx) => {
+            const created = ctx.context.newSession;
+            if (!created) return;
+            const authorization = ctx.request?.headers.get("authorization") ?? "";
+            const name = ctx.context.authCookies.sessionToken.name;
+            const sent = /^bearer /i.test(authorization)
+              ? authorization.slice(7).trim()
+              : parseCookies(ctx.request?.headers.get("cookie") ?? "").get(name);
+            const token = sent && decodeURIComponent(sent).split(".")[0];
+            if (!token || token === created.session.token) return;
+            const previous = await ctx.context.internalAdapter.findSession(token);
+            const user = previous?.user as { id: string; isAnonymous?: boolean | null } | undefined;
+            if (!user?.isAnonymous || user.id === created.user.id) return;
+            await ctx.context.internalAdapter.deleteSession(token);
+            ctx.setCookie(`${name}_multi-${token.toLowerCase()}`, "", {
+              ...ctx.context.authCookies.sessionToken.attributes,
+              maxAge: 0,
+            });
           }),
         },
         {
@@ -81,6 +118,9 @@ export const deviceAccounts = () =>
                 accounts.map(({ user }) => user.id),
               )
             : new Map<string, DeviceAccountOrganization[]>();
+          if (options.organizations)
+            for (const [userId, organizations] of memberships)
+              memberships.set(userId, await options.organizations(userId, organizations));
           return ctx.json(
             accounts.map(({ session, user }) => ({
               session: parseSessionOutput(ctx.context.options, session),

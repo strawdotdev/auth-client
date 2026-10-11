@@ -28,7 +28,7 @@ export const authData = createAuthDataClient({
 <AuthDataProvider client={authData}>{children}</AuthDataProvider>;
 ```
 
-Pass `withStoredConvexToken(authClient)` to `ConvexBetterAuthProvider` (with `crossDomainClient()` or `expoClient()`): the first Convex token fetch for a session uses the token the convex plugin already set with the sign-in or session read (`convex_jwt`) instead of another round trip, when it is the current session's, has more than a minute left and was not handed out before; refreshes ask the server. Give `ConvexReactClient` `initialAuthTokenReuse: true` (experimental in Convex) so it keeps that token until its scheduled refresh.
+Pass `withStoredConvexToken(authClient)` to `ConvexBetterAuthProvider` when the client keeps its cookies where the page can read them (`crossDomainClient()` or `expoClient()`; not with [accounts](#accounts), whose session is an HttpOnly cookie): the first Convex token fetch for a session uses the token the convex plugin already set with the sign-in or session read (`convex_jwt`) instead of another round trip, when it is the current session's, has more than a minute left and was not handed out before; refreshes ask the server. Give `ConvexReactClient` `initialAuthTokenReuse: true` (experimental in Convex) so it keeps that token until its scheduled refresh.
 
 Enable `organizationClient()` on the original client for organization capabilities. For guests, enable `anonymousClient()` and see [Guests](#guests). Keep that client, the official authentication provider, and application foreground/network refresh wiring. Do not add another QueryClient or authentication layer.
 
@@ -57,6 +57,7 @@ Each root adds no markup and owns one workflow. Its context hook reads that inst
 | PasswordChangeForm       | usePasswordChangeFormContext       | usePasswordChangeForm       |
 | ReauthenticationForm     | useReauthenticationFormContext     | useReauthenticationForm     |
 | SignOut                  | useSignOutContext                  | useSignOut                  |
+| Accounts                 | useAccountsContext                 | useAccounts                 |
 
 All are properties of the configured `authData` client. Scope, identity changes, and genuine departure retire private state and unfinished callbacks. With `guests: true`, the client also has `useGuestSession()` (no root: it reads the client's one guest session).
 
@@ -161,6 +162,7 @@ Settings expose `form` only while an authorized organization exists. Pristine dr
 | Profile                    | `form.actions.submit`, `actions.update.run(data)`, `actions.updateImage.run(image)`  |
 | Email / password / reauth  | `form.actions.submit`                                                                |
 | Sign out                   | `actions.signOut`                                                                    |
+| Accounts                   | `account(userId).switch`, `account(userId).signOut`, `actions.signOutAll`            |
 
 Observed-item actions resolve current payloads internally. Resend preserves supported custom invitation fields. Do not copy rows into mutation payloads.
 
@@ -233,6 +235,53 @@ On the backend, use `anonymous({ disableDeleteAnonymousUser: true, onLinkAccount
 
 Turn `guests` on only in an app built around guests. An app with sign-in pages and signed-out routes keeps it off: its guards expect a visitor with no session. In Gaia, only the World Game turns it on; the main app never does.
 
+## Accounts
+
+Several accounts signed in on one device, each browser tab acting as one of them, as an email
+client or Google's apps do. It needs Better Auth served from the app's own origin, so the session is
+a real cookie (shared by every app under one domain with `advanced.crossSubDomainCookies`): the web
+app passes `/api/auth/*` to the Convex site, as the integration's Next.js and TanStack Start
+handlers do (the example uses an Expo Router API route, `app/api/auth/[...path]+api.ts`; a static
+host can rewrite the path). `crossDomain` is not used.
+
+```ts
+// Backend (Better Auth options)
+import { deviceAccounts } from "@strawdev/auth-client/better-auth";
+plugins: [multiSession(), bearer(), deviceAccounts() /* organization(), convex(), ... */];
+
+// Client
+import { deviceAccountsClient } from "@strawdev/auth-client";
+const authClient = createAuthClient({
+  baseURL: window.location.origin,
+  plugins: [
+    multiSessionClient(),
+    deviceAccountsClient({ storage: sessionStorage }),
+    convexClient(),
+  ],
+});
+const authData = createAuthDataClient({
+  authClient,
+  api,
+  features: { authentication: true, accounts: true /* , ... */ },
+});
+```
+
+- **The device keeps the accounts** (Better Auth's `multiSession()`); its session cookie names the
+  latest. `deviceAccounts()` lists them (`authData.useDeviceAccounts()`, `authClient.deviceAccounts.list()`),
+  each with its organizations and role there when the organization plugin is on.
+- **Each tab acts as its own.** `deviceAccountsClient()` keeps the tab's session token in `storage`
+  and names it in every request (`bearer()`); a tab without one adopts the device's on its first
+  session read. Convex follows: the provider's token is the tab's account's.
+- **Switching** (`account(userId).switch`) is the tab's alone. **Signing in** from an account adds
+  another, and the tab becomes it. **Signing out** (`SignOut`, `account(userId).signOut`) leaves
+  one account; a tab whose account is gone moves on to the device's next within the same session
+  read, never showing a passing sign-out. `actions.signOutAll` is Better Auth's sign-out: every
+  account. A password change that revokes other sessions keeps every tab signed in.
+- A guest who signs in or up leaves the device's accounts, linked to the account.
+
+`accounts` is client-only and needs `authentication`. Product rules (which account opens which
+organization, the switcher's presentation) stay in the application.
+
 ## Low-level reads and methods
 
 ```tsx
@@ -293,7 +342,7 @@ The workflows replace supported-domain form state, action readiness, conflict gu
 Install the precompiled release:
 
 ```sh
-pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.6.1'
+pnpm add '@strawdev/auth-client@github:strawdotdev/auth-client#v0.7.0'
 ```
 
 Release tags contain the ready-to-use package at the repository root: JavaScript, declarations, and source maps. Installation does not compile this library, install its development tooling, or require permission to run its build scripts. The application still bundles normally and supplies the documented peer dependencies and authentication/backend configuration.
@@ -309,7 +358,7 @@ Node 24 and pnpm 12. Run `pnpm install`, then `pnpm build`. `pnpm check` covers 
 For the example:
 
 1. In `examples/backend`, run `pnpm exec convex dev` and select a separate development deployment. The checked-in generated files are refreshed by Convex.
-2. Configure deployment variables `BETTER_AUTH_SECRET`, `SITE_URL` (default example web URL `http://localhost:8099`), `AUTH_EMAIL_DELIVERY=controlled`, and `MAILBOX_URL`.
+2. Configure deployment variables `BETTER_AUTH_SECRET`, `SITE_URL` (default example web URL `http://localhost:8099`), `AUTH_EMAIL_DELIVERY=controlled`, and `MAILBOX_URL`. The browser tests open the example on two origins under one domain, which share its session cookie: set `SITE_URL=http://one.auth.test:8099`, `SECOND_SITE_URL=http://two.auth.test:8099` and `COOKIE_DOMAIN=auth.test` (Playwright's Chromium resolves `*.auth.test` to this machine).
 3. Run `pnpm mailbox`. The development-only sink binds localhost:8025 and stores messages in memory. A local Convex backend can use `http://127.0.0.1:8025`; a cloud deployment needs its own reachable test email delivery service.
 4. Copy the Expo `.env.example` to `.env.local` and set that deployment's client and HTTP URLs.
 5. Run root `pnpm dev`. The library, backend, and Expo watchers remain active. Run `pnpm test:e2e` against the example and mailbox.
@@ -340,4 +389,4 @@ For a typed application context, call `createSignalQueries<DataModel>(options)` 
 
 ## Maintaining this repository
 
-The package source is in `packages/auth-client`. See the [source organization guide](docs/architecture.md) for module ownership and naming, and the [Convex pagination review](docs/pagination.md) for the distinction between component cursors and Better Auth's HTTP endpoint contract. These are repository maintenance notes; the package's three public import paths remain unchanged.
+The package source is in `packages/auth-client`. See the [source organization guide](docs/architecture.md) for module ownership and naming, and the [Convex pagination review](docs/pagination.md) for the distinction between component cursors and Better Auth's HTTP endpoint contract. These are repository maintenance notes; the package's four public import paths (`.`, `/better-auth`, `/convex`, `/convex/component`) remain unchanged.

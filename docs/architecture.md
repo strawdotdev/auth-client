@@ -43,6 +43,12 @@ src/
     account/
       workflows.tsx                Reactive profile, email, password and reauthentication flows
       types.ts                     Current-user binding and account contracts
+    accounts/
+      workflows.tsx                The device's accounts: switching and signing one or all out
+      types.ts                     Accounts contracts
+  better-auth/
+    index.ts                       deviceAccounts(): the device's accounts (server plugin)
+    client.ts                      deviceAccountsClient(): the tab's account (client plugin)
   convex/
     index.ts                       Application signal queries and transactional triggers
     component.ts                   Component-local access/dependency metadata readers

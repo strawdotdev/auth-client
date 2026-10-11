@@ -105,6 +105,7 @@ const fixtures = [
   "invitations.types.tsx",
   "organization-session.types.tsx",
   "authentication.types.tsx",
+  "accounts.types.ts",
 ];
 for (const fixture of fixtures) {
   const source = await readFile(join(root, "tests", fixture), "utf8");
@@ -115,6 +116,10 @@ for (const fixture of fixtures) {
     .replaceAll(
       "../packages/auth-client/src/convex/component.js",
       "@strawdev/auth-client/convex/component",
+    )
+    .replaceAll(
+      "../packages/auth-client/src/better-auth/index.js",
+      "@strawdev/auth-client/better-auth",
     );
   await writeFile(join(directory, fixture), packed);
 }

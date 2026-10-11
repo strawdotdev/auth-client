@@ -29,11 +29,14 @@ export default function Home() {
     token?: string;
   }>();
   const [message, setMessage] = useState("");
+  const [adding, setAdding] = useState(false);
   return (
     <ScrollView contentContainerStyle={{ padding: 24, gap: 12, maxWidth: 800 }}>
       <Text accessibilityRole="header">Auth data example</Text>
       <Text accessibilityRole="alert">{message}</Text>
-      {!session.data ? (
+      {session.isPending ? (
+        <Text>Loading</Text>
+      ) : !session.data ? (
         <>
           <authData.SignInForm
             initialValues={{ email: "", password: "" }}
@@ -72,6 +75,26 @@ export default function Home() {
           <authData.SignOut onSignedOut={() => setMessage("Signed out")}>
             <SignOutControls />
           </authData.SignOut>
+          <Text accessibilityRole="header">Accounts</Text>
+          <authData.Accounts
+            onSwitched={({ userId }) => setMessage(`Switched to ${userId}`)}
+            onSignedOut={() => setMessage("Signed out an account")}
+          >
+            <AccountsControls />
+          </authData.Accounts>
+          {adding ? (
+            <authData.SignInForm
+              initialValues={{ email: "", password: "" }}
+              onAuthenticated={() => {
+                setAdding(false);
+                setMessage("Added an account");
+              }}
+            >
+              <SignInControls />
+            </authData.SignInForm>
+          ) : (
+            <Button title="Add account" onPress={() => setAdding(true)} />
+          )}
           {!session.data.user.emailVerified ? (
             <authData.EmailVerification
               initialValues={{ email: session.data.user.email }}
@@ -179,6 +202,38 @@ function SignUpControls() {
       />
       <ActionButton title="Sign up" action={form.actions.submit} />
       <WorkflowFeedback feedback={form.feedback} recoveryTitle="Retry sign-up refresh" />
+    </>
+  );
+}
+
+function AccountsControls() {
+  const accounts = authData.useAccountsContext();
+  return (
+    <>
+      {accounts.data?.map(({ user, organizations }) => (
+        <View key={user.id} accessibilityLabel={`Account ${user.email}`}>
+          <Text>
+            {user.id === accounts.currentUserId ? `${user.email} (this tab)` : user.email}
+          </Text>
+          {organizations.map((organization) => (
+            <Text key={organization.id}>{`${organization.name}: ${organization.role}`}</Text>
+          ))}
+          <ActionButton
+            title={`Switch to ${user.email}`}
+            action={accounts.account(user.id).switch}
+          />
+          <ActionButton
+            title={`Sign out ${user.email}`}
+            action={accounts.account(user.id).signOut}
+          />
+        </View>
+      ))}
+      <ActionButton title="Sign out of all accounts" action={accounts.actions.signOutAll} />
+      <WorkflowFeedback
+        feedback={accounts.feedback}
+        queryError={accounts.queryError}
+        recoveryTitle="Retry account refresh"
+      />
     </>
   );
 }

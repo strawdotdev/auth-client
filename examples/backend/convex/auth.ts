@@ -1,9 +1,10 @@
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { betterAuth } from "better-auth/minimal";
-import { anonymous, organization } from "better-auth/plugins";
+import { anonymous, bearer, multiSession, organization } from "better-auth/plugins";
 import { expo } from "@better-auth/expo";
-import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
+import { convex } from "@convex-dev/better-auth/plugins";
 import { createSignalTriggers } from "@strawdev/auth-client/convex";
+import { deviceAccounts } from "@strawdev/auth-client/better-auth";
 import { components, internal } from "./_generated/api";
 import authConfig from "./auth.config";
 import type { DataModel } from "./_generated/dataModel";
@@ -21,11 +22,19 @@ export const authComponent: ReturnType<typeof createClient<DataModel, typeof sch
       markSessionsChanged: internal.authData.markSessionsChanged,
     }),
   });
+const siteUrl = process.env.SITE_URL ?? "http://localhost:8099";
+// The web app serves Better Auth from its own origin (app/api/auth), so the session is a cookie.
+// With COOKIE_DOMAIN, every app under that domain shares it (the browser tests' two origins,
+// SITE_URL and SECOND_SITE_URL).
+const cookieDomain = process.env.COOKIE_DOMAIN;
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) => ({
-  baseURL: process.env.CONVEX_SITE_URL,
-  trustedOrigins: [process.env.SITE_URL ?? "http://localhost:8099", "reactive-auth-example://"],
+  baseURL: siteUrl,
+  trustedOrigins: [siteUrl, process.env.SECOND_SITE_URL ?? siteUrl, "reactive-auth-example://"],
   database: authComponent.adapter(ctx),
-  advanced: { database: { generateId: false as const } },
+  advanced: {
+    database: { generateId: false as const },
+    ...(cookieDomain && { crossSubDomainCookies: { enabled: true, domain: cookieDomain } }),
+  },
   user: {
     changeEmail: {
       enabled: true,
@@ -68,11 +77,14 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => ({
         sendAuthEmail(ctx, {
           to: data.email,
           subject: "Organization invitation",
-          url: `${process.env.SITE_URL}/?invitationId=${data.id}`,
+          url: `${siteUrl}/?invitationId=${data.id}`,
         }),
     }),
+    // Several accounts on one device, each tab acting as one of them.
+    multiSession(),
+    bearer(),
+    deviceAccounts(),
     convex({ authConfig }),
-    crossDomain({ siteUrl: process.env.SITE_URL ?? "http://localhost:8099" }),
   ],
 });
 export const createAuth = (ctx: GenericCtx<DataModel>) => betterAuth(createAuthOptions(ctx));

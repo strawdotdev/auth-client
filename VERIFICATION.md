@@ -1,5 +1,32 @@
 # Verification
 
+## v0.7.0 — 2026-10-11
+
+Several accounts on one device, each browser tab acting as its own: the client-only `accounts`
+capability (`Accounts`/`useAccounts`, `useDeviceAccounts`), the server plugin `deviceAccounts()`
+(new entry `@strawdev/auth-client/better-auth`, beside Better Auth's `multiSession()` and
+`bearer()`) and the client plugin `deviceAccountsClient()`. It needs Better Auth served from the
+app's own origin (a session cookie); the example now does that through an Expo Router API route and
+drops `crossDomain`. With accounts, signing in from an account adds another, `SignOut` leaves only
+the tab's account and `withStoredConvexToken` does not apply. Breaking only for apps that opt in:
+`WorkflowOperation` gains `switchAccount` and `signOutAccount`.
+
+- `pnpm verify` (121 controlled tests), `pnpm test:package` and `pnpm test:git` pass; the package
+  check compiles a new accounts type contract against the packed artifact (it caught an emitted
+  `getActions` type Better Auth's client rejected).
+- Against a real in-memory Better Auth with tabs sharing one cookie jar (10 tests): one session
+  across tabs, a new tab adopting the device's account, adding, switching, organizations with
+  roles, signing one account or all out, a forged multi-session cookie, the same account signing in
+  again, a password change revoking other sessions, a linked guest leaving the device, and the
+  application ordering organizations. They found two Better Auth behaviours the plugins now handle:
+  a tab signing out the device's current account while acting as another left the cookie on the
+  revoked session, and a session read naming a gone account cleared the device's cookie.
+- `pnpm test:e2e` against the local backend and mailbox, the example on two origins
+  (`one.auth.test`, `two.auth.test`) sharing one cookie: all eleven journeys passed in 4.2 minutes,
+  including two new accounts journeys. Three journeys' fixture helper runs
+  `convex run --deployment local`, which needs a Convex login; on the logged-out box they were run
+  with that flag removed (not committed).
+
 ## v0.6.2 — 2026-10-10
 
 The `convex` peer range widens from `~1.45.0` to `^1.45.0`, as `@convex-dev/better-auth` declares

@@ -7,7 +7,8 @@
       "package": "dev.straw.reactiveauthexample"
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "server"
     },
     "plugins": ["expo-router", "expo-secure-store"]
   }

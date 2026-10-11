@@ -4,8 +4,12 @@
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { createAuthClient } from "better-auth/client";
-import { multiSessionClient, organizationClient } from "better-auth/client/plugins";
-import { bearer, multiSession, organization } from "better-auth/plugins";
+import {
+  anonymousClient,
+  multiSessionClient,
+  organizationClient,
+} from "better-auth/client/plugins";
+import { anonymous, bearer, multiSession, organization } from "better-auth/plugins";
 import { beforeEach, expect, it } from "vitest";
 import { deviceAccounts } from "../packages/auth-client/src/better-auth/index.js";
 import { deviceAccountsClient } from "../packages/auth-client/src/better-auth/client.js";
@@ -242,4 +246,62 @@ it("keeps every tab signed in when a password change revokes the account's other
     "bob@example.com",
     "alice@example.com",
   ]);
+});
+
+it("lets a guest go from the device's accounts once it signs in, linked to the account", async () => {
+  // Another plugin set; the tests use only the endpoints every set has.
+  server = betterAuth({
+    ...createServer().options,
+    plugins: [
+      anonymous({ disableDeleteAnonymousUser: true }),
+      multiSession(),
+      bearer(),
+      deviceAccounts(),
+    ],
+  }) as unknown as typeof server;
+  await account("alice@example.com");
+  const playing = tab();
+  const client = createAuthClient({
+    baseURL: origin,
+    fetchOptions: { customFetchImpl: browserFetch },
+    plugins: [
+      anonymousClient(),
+      multiSessionClient(),
+      deviceAccountsClient({ storage: playing.kept }),
+    ],
+  });
+  await client.signIn.anonymous();
+  expect((await client.getSession()).data?.user.isAnonymous).toBe(true);
+  await client.signIn.email({ email: "alice@example.com", password: "password1234" });
+  expect((await client.deviceAccounts.list()).data?.map(({ user }) => user.email)).toEqual([
+    "alice@example.com",
+  ]);
+  // Signing the account out leaves nothing to fall back to, not the guest it was.
+  await client.signOut();
+  expect((await client.getSession()).data).toBe(null);
+});
+
+it("shows each account's organizations as the application orders and filters them", async () => {
+  // Another plugin set; the tests use only the endpoints every set has.
+  server = betterAuth({
+    ...createServer().options,
+    plugins: [
+      organization(),
+      multiSession(),
+      bearer(),
+      deviceAccounts({
+        organizations: (_userId, organizations) =>
+          organizations
+            .filter(({ slug }) => slug !== "leaving")
+            .sort((a, b) => Number(b.slug === "mine") - Number(a.slug === "mine")),
+      }),
+    ],
+  }) as unknown as typeof server;
+  await account("alice@example.com");
+  const first = tab();
+  await signIn(first, "alice@example.com");
+  for (const slug of ["shared", "leaving", "mine"])
+    await first.client.organization.create({ name: slug, slug });
+  const { data } = await first.client.deviceAccounts.list();
+  expect(data?.[0]?.organizations.map(({ slug }) => slug)).toEqual(["mine", "shared"]);
 });

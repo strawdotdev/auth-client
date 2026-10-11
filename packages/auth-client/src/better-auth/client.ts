@@ -5,6 +5,7 @@ import type { deviceAccounts } from "./index.js";
 export type DeviceAccountStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 type SessionRead = { session?: { token?: unknown } } | null | undefined;
+type GetActions = NonNullable<BetterAuthClientPlugin["getActions"]>;
 
 function memoryStorage(): DeviceAccountStorage {
   const values = new Map<string, string>();
@@ -93,7 +94,7 @@ export const deviceAccountsClient = ({
         },
       },
     ],
-    getActions: ($fetch, $store) => {
+    getActions: ($fetch: Parameters<GetActions>[0], $store: Parameters<GetActions>[1]) => {
       sessionChanged = () => $store.notify("$sessionSignal");
       readSession = async (query) =>
         (await $fetch("/get-session", { method: "GET", query: query as Record<string, string> }))
