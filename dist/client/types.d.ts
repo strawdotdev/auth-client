@@ -172,7 +172,7 @@ export type AuthDataClient<C extends SessionClient, F extends Features, U extend
 } ? PasskeySurface<C extends PasskeyClient ? C : never> & PasskeyWorkflows<C extends PasskeyClient ? C : never> : unknown) & (F extends {
     accounts: true;
 } ? AccountsWorkflows<C extends AccountsClient ? C : never, F extends {
-    guests: true;
+    guests: true | "on-demand";
 } ? true : false> : unknown);
 export type AuthDataClientConfig<C extends SessionClient, F extends Features, U extends {
     email: string;
@@ -186,7 +186,7 @@ export type AuthDataClientConfig<C extends SessionClient, F extends Features, U 
     } ? AuthenticationClient : unknown) & (F extends {
         account: true;
     } ? AccountClient : unknown) & (F extends {
-        guests: true;
+        guests: true | "on-demand";
     } ? GuestClient : unknown) & (F extends {
         passkeys: true;
     } ? PasskeyClient : unknown) & (F extends {
@@ -194,7 +194,8 @@ export type AuthDataClientConfig<C extends SessionClient, F extends Features, U 
     } ? AccountsClient : unknown);
     api: InvalidationApi;
     /**
-     * `guests` needs `authentication`: signing out returns the visitor to a guest. So does
+     * `guests` needs `authentication`: signing out returns the visitor to a guest; on demand, it
+     * also needs `accounts`, whose `switchToGuest` makes the guest. So does
      * `accounts`: signing in adds an account and signing out leaves one. So does `passkeys`: a
      * passkey signs in as a password does.
      */
@@ -202,6 +203,11 @@ export type AuthDataClientConfig<C extends SessionClient, F extends Features, U 
         guests: true;
     } ? {
         authentication: true;
+    } : unknown) & (F extends {
+        guests: "on-demand";
+    } ? {
+        authentication: true;
+        accounts: true;
     } : unknown) & (F extends {
         passkeys: true;
     } ? {

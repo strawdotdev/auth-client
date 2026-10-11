@@ -40,7 +40,8 @@ export type AccountsState<C extends AccountsClient, Guests extends boolean = fal
     } & (Guests extends true ? {
         /**
          * Makes this context a guest: the device's guest if it keeps one, else a new one beside
-         * the device's accounts, which stay signed in.
+         * the device's accounts, which stay signed in. With on-demand guests, also from a
+         * signed-out context.
          */
         switchToGuest: WorkflowAction<[], AccountSwitched>;
     } : unknown);

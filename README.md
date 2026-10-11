@@ -239,6 +239,8 @@ On the backend, use `anonymous({ disableDeleteAnonymousUser: true, onLinkAccount
 
 Turn `guests` on only in an app built around guests. An app with sign-in pages and signed-out routes keeps it off: its guards expect a visitor with no session. In Gaia, only the World Game turns it on; the main app never does.
 
+An app with sign-in pages where only one page welcomes guests (such as a public link anyone may edit) uses `guests: "on-demand"` with `accounts`: no visitor becomes a guest by themselves, and `useAccounts().actions.switchToGuest` makes one when the page asks, from a signed-out context too. Signing out then leaves the context signed out, as without guests, and there is no `useGuestSession()`.
+
 ## Accounts
 
 Several accounts signed in on one device, each browser tab acting as one of them, as an email

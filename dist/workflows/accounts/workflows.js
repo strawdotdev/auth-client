@@ -10,6 +10,8 @@ export function createAccountsWorkflows(auth, runtime, reads) {
     const receipts = new Map();
     const guests = guestSession(runtime) !== undefined;
     const afterSignOut = guests ? "guest" : "synchronization";
+    // On demand, a visitor holds no session until they become a guest, so a signed-out context may.
+    const onDemandGuests = runtime.features.guests === "on-demand";
     function useAccounts(options = {}) {
         const query = reads.useDeviceAccounts(undefined, { enabled: options.enabled });
         const session = runtime.auth.useSession();
@@ -131,11 +133,14 @@ export function createAccountsWorkflows(auth, runtime, reads) {
                     ...action.control({ operation: "signOut" }, receipt ? { code: "recovery" } : currentUserId ? null : { code: "unavailable" }),
                     run: () => signOutAll(),
                 },
-                ...(guests && {
+                ...((guests || onDemandGuests) && {
                     switchToGuest: {
                         ...action.control({ operation: "signInAsGuest" }, receipt
                             ? { code: "recovery" }
-                            : !currentUserId || runtime.authObservation.isAnonymous || !query.data
+                            : runtime.authObservation.isAnonymous ||
+                                // The device's guest is found among its accounts. A signed-out context lists
+                                // none (the device holds no session), so on demand it makes a new guest.
+                                (currentUserId ? !query.data : !onDemandGuests)
                                 ? { code: "unavailable" }
                                 : null),
                         run: () => switchToGuest(),

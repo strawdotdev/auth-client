@@ -172,7 +172,8 @@ function isAvailable(runtime, availability, enabled, disposed, view) {
 /** Reauthentication needs an account; so does signing out when the app keeps guests. */
 function guestRequiresAccount(runtime, availability) {
     return (runtime.authObservation.isAnonymous &&
-        (availability === "authenticated" || (availability === "session" && !!runtime.features.guests)));
+        (availability === "authenticated" ||
+            (availability === "session" && runtime.features.guests === true)));
 }
 function viewHasRecovery(view) {
     if (!view)

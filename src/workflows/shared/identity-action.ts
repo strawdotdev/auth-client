@@ -217,7 +217,8 @@ function isAvailable(
 function guestRequiresAccount(runtime: CacheRuntime, availability: Availability) {
   return (
     runtime.authObservation.isAnonymous &&
-    (availability === "authenticated" || (availability === "session" && !!runtime.features.guests))
+    (availability === "authenticated" ||
+      (availability === "session" && runtime.features.guests === true))
   );
 }
 

@@ -5,8 +5,11 @@ export type Features = {
     sessions?: boolean;
     authentication?: boolean;
     account?: boolean;
-    /** Client-only: keep a Better Auth anonymous session for every visitor. */
-    guests?: boolean;
+    /**
+     * Client-only: Better Auth anonymous sessions (guests). `true` keeps one for every visitor;
+     * `"on-demand"` (with `accounts`) makes a visitor a guest only through `switchToGuest`.
+     */
+    guests?: boolean | "on-demand";
     /**
      * Client-only: several accounts signed in on one device, each context (a browser tab) acting as
      * one of them (Better Auth's `multiSession()` and `bearer()`, with `deviceAccounts()`).
