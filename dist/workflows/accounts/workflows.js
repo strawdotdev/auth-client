@@ -1,6 +1,6 @@
 import { asRecord, asRecords, getActionState, requireAvailable, useCommittedRef, } from "../shared/action.js";
 import { recoveryAction, useIdentityAction, withRecoveryFeedback, } from "../shared/identity-action.js";
-import { synchronizeAuthenticated } from "../shared/identity-sync.js";
+import { resultIdentity, synchronizeAuthenticated, } from "../shared/identity-sync.js";
 import { defineWorkflow } from "../shared/root.js";
 import { leaveSession, observedIdentity, signOutContext, } from "../authentication/workflows.js";
 import { guestSession } from "../authentication/guest.js";
@@ -8,7 +8,8 @@ const call = (endpoint, values) => endpoint(values, { throw: true, retry: 0 });
 export function createAccountsWorkflows(auth, runtime, reads) {
     const scope = "accounts";
     const receipts = new Map();
-    const afterSignOut = guestSession(runtime) ? "guest" : "synchronization";
+    const guests = guestSession(runtime) !== undefined;
+    const afterSignOut = guests ? "guest" : "synchronization";
     function useAccounts(options = {}) {
         const query = reads.useDeviceAccounts(undefined, { enabled: options.enabled });
         const session = runtime.auth.useSession();
@@ -17,6 +18,12 @@ export function createAccountsWorkflows(auth, runtime, reads) {
         });
         const receipt = receipts.get(scope);
         const latest = useCommittedRef({ query, options });
+        const guestOf = (rows) => {
+            const user = asRecords(rows)
+                .map((entry) => asRecord(entry.user))
+                .find((entry) => entry?.isAnonymous === true);
+            return typeof user?.id === "string" ? user.id : undefined;
+        };
         const tokenOf = (userId, rows) => {
             const row = asRecords(rows).find((entry) => asRecord(entry.user)?.id === userId);
             const token = asRecord(row?.session)?.token;
@@ -31,17 +38,36 @@ export function createAccountsWorkflows(auth, runtime, reads) {
             await transaction.complete(() => latest.current.options.onSignedOut?.(completion));
             return completion;
         }
-        function switchTo(userId) {
-            return action.run({ operation: "switchAccount" }, async (transaction) => {
-                const token = tokenOf(userId, latest.current.query.data);
-                requireAvailable(token);
-                const { userId: previous, sessionToken } = runtime.authObservation;
-                // Choosing is local to this context; nothing is written to the server.
+        /** Makes this context the identity `write` chose or created, once its session is observed. */
+        async function becomeIdentity(transaction, write) {
+            const { userId: previous, sessionToken } = runtime.authObservation;
+            const identity = await synchronizeAuthenticated(runtime, transaction, await write(), {
+                userId: previous,
+                token: sessionToken,
+            });
+            const completion = { outcome: "switched", ...identity };
+            await transaction.complete(() => latest.current.options.onSwitched?.(completion));
+            return completion;
+        }
+        /** Chooses a listed account; choosing is local to this context, nothing is written. */
+        const select = (transaction, userId) => {
+            const token = tokenOf(userId, latest.current.query.data);
+            requireAvailable(token);
+            return becomeIdentity(transaction, async () => {
                 await transaction.write(async () => auth.deviceAccounts.select(token));
-                const identity = await synchronizeAuthenticated(runtime, transaction, { userId, token }, { userId: previous, token: sessionToken });
-                const completion = { outcome: "switched", ...identity };
-                await transaction.complete(() => latest.current.options.onSwitched?.(completion));
-                return completion;
+                return { userId, token };
+            });
+        };
+        function switchTo(userId) {
+            return action.run({ operation: "switchAccount" }, (transaction) => select(transaction, userId));
+        }
+        /** The device's guest, if it keeps one; else a new guest beside the device's accounts. */
+        function switchToGuest() {
+            return action.run({ operation: "signInAsGuest" }, (transaction) => {
+                const guest = guestOf(latest.current.query.data);
+                if (guest)
+                    return select(transaction, guest);
+                return becomeIdentity(transaction, async () => resultIdentity(await transaction.write(() => call(auth.signIn.anonymous, {}))));
             });
         }
         function signOut(userId) {
@@ -105,6 +131,16 @@ export function createAccountsWorkflows(auth, runtime, reads) {
                     ...action.control({ operation: "signOut" }, receipt ? { code: "recovery" } : currentUserId ? null : { code: "unavailable" }),
                     run: () => signOutAll(),
                 },
+                ...(guests && {
+                    switchToGuest: {
+                        ...action.control({ operation: "signInAsGuest" }, receipt
+                            ? { code: "recovery" }
+                            : !currentUserId || runtime.authObservation.isAnonymous || !query.data
+                                ? { code: "unavailable" }
+                                : null),
+                        run: () => switchToGuest(),
+                    },
+                }),
             },
         };
         return withRecoveryFeedback(state, action, recoveryTarget, recoveryAction(action, recoveryTarget, finishSignOut), receipt !== undefined);

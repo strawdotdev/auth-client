@@ -44,6 +44,16 @@ export declare function createAccountsWorkflows(auth: AccountsClient, runtime: C
             };
         };
         actions: {
+            switchToGuest?: {
+                run: () => Promise<import("../shared/types.js").WorkflowOutcome<{
+                    userId: string;
+                    sessionId: string;
+                    outcome: "switched";
+                }>>;
+                isDisabled: boolean;
+                isPending: boolean;
+                disabledReason: import("../shared/types.js").WorkflowDisabledReason | null;
+            } | undefined;
             signOutAll: {
                 run: () => Promise<import("../shared/types.js").WorkflowOutcome<{
                     outcome: "signedOut";
@@ -107,6 +117,16 @@ export declare function createAccountsWorkflows(auth: AccountsClient, runtime: C
             };
         };
         actions: {
+            switchToGuest?: {
+                run: () => Promise<import("../shared/types.js").WorkflowOutcome<{
+                    userId: string;
+                    sessionId: string;
+                    outcome: "switched";
+                }>>;
+                isDisabled: boolean;
+                isPending: boolean;
+                disabledReason: import("../shared/types.js").WorkflowDisabledReason | null;
+            } | undefined;
             signOutAll: {
                 run: () => Promise<import("../shared/types.js").WorkflowOutcome<{
                     outcome: "signedOut";

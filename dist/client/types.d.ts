@@ -150,7 +150,9 @@ export type AuthDataClient<C extends SessionClient, F extends Features, U extend
     guests: true;
 } ? GuestSessionWorkflow : unknown) & (F extends {
     accounts: true;
-} ? AccountsWorkflows<C extends AccountsClient ? C : never> : unknown);
+} ? AccountsWorkflows<C extends AccountsClient ? C : never, F extends {
+    guests: true;
+} ? true : false> : unknown);
 export type AuthDataClientConfig<C extends SessionClient, F extends Features, U extends {
     email: string;
 }> = {

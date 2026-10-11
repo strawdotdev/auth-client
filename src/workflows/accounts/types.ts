@@ -22,7 +22,9 @@ export type AccountsOptions = WorkflowFeedbackOptions & {
   onSignedOut?: WorkflowCallback<AccountSignedOut>;
 };
 
-export type AccountsState<C extends AccountsClient> = Read<DeviceAccounts<C>> &
+export type AccountsState<C extends AccountsClient, Guests extends boolean = false> = Read<
+  DeviceAccounts<C>
+> &
   WorkflowActionState & {
     /** The account this context acts as. */
     currentUserId: string | undefined;
@@ -35,12 +37,20 @@ export type AccountsState<C extends AccountsClient> = Read<DeviceAccounts<C>> &
     actions: {
       /** Signs every account out of the device (Better Auth's sign-out). */
       signOutAll: WorkflowAction<[], { outcome: "signedOut" }>;
-    };
+    } & (Guests extends true
+      ? {
+          /**
+           * Makes this context a guest: the device's guest if it keeps one, else a new one beside
+           * the device's accounts, which stay signed in.
+           */
+          switchToGuest: WorkflowAction<[], AccountSwitched>;
+        }
+      : unknown);
   };
 
-export type AccountsWorkflows<C extends AccountsClient> = {
+export type AccountsWorkflows<C extends AccountsClient, Guests extends boolean = false> = {
   useDeviceAccounts: Hook<C["deviceAccounts"]["list"]>;
-  useAccountsContext(): AccountsState<C>;
-  useAccounts(this: void, options?: AccountsOptions): AccountsState<C>;
+  useAccountsContext(): AccountsState<C, Guests>;
+  useAccounts(this: void, options?: AccountsOptions): AccountsState<C, Guests>;
   Accounts: WorkflowRootComponent<AccountsOptions>;
 };
