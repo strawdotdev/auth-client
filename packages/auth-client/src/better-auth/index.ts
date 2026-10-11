@@ -57,8 +57,10 @@ export const deviceAccounts = (options: DeviceAccountsOptions = {}) =>
         },
         {
           // A guest who signs in or up is linked to the account (the anonymous plugin), so it
-          // leaves the device's accounts; apps that keep its user (disableDeleteAnonymousUser)
-          // forget the user themselves.
+          // leaves the device's accounts. Its session stays for whoever owns the guest: the
+          // anonymous plugin deletes it at once, apps that keep the user
+          // (disableDeleteAnonymousUser) when they forget it. A page still holding the guest's
+          // session for a moment (its Convex token, say) then keeps working until it moves on.
           matcher: () => true,
           handler: createAuthMiddleware(async (ctx) => {
             const created = ctx.context.newSession;
@@ -73,7 +75,6 @@ export const deviceAccounts = (options: DeviceAccountsOptions = {}) =>
             const previous = await ctx.context.internalAdapter.findSession(token);
             const user = previous?.user as { id: string; isAnonymous?: boolean | null } | undefined;
             if (!user?.isAnonymous || user.id === created.user.id) return;
-            await ctx.context.internalAdapter.deleteSession(token);
             ctx.setCookie(`${name}_multi-${token.toLowerCase()}`, "", {
               ...ctx.context.authCookies.sessionToken.attributes,
               maxAge: 0,

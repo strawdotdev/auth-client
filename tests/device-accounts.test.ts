@@ -271,11 +271,17 @@ it("lets a guest go from the device's accounts once it signs in, linked to the a
     ],
   });
   await client.signIn.anonymous();
-  expect((await client.getSession()).data?.user.isAnonymous).toBe(true);
+  const guest = (await client.getSession()).data;
+  expect(guest?.user.isAnonymous).toBe(true);
   await client.signIn.email({ email: "alice@example.com", password: "password1234" });
   expect((await client.deviceAccounts.list()).data?.map(({ user }) => user.email)).toEqual([
     "alice@example.com",
   ]);
+  // The guest's session stays for the application that keeps the guest to end.
+  const kept = await server.api.getSession({
+    headers: new Headers({ authorization: `Bearer ${guest?.session.token}` }),
+  });
+  expect(kept?.user.id).toBe(guest?.user.id);
   // Signing the account out leaves nothing to fall back to, not the guest it was.
   await client.signOut();
   expect((await client.getSession()).data).toBe(null);
