@@ -352,6 +352,30 @@ it("makes this context a guest beside the device's accounts, reusing the device'
   expect(model.current).toBe("guest-2");
 });
 
+it("makes a guest on demand only, from a signed-out context, and signs it out as an account", async () => {
+  const model = device();
+  const client = createAuthDataClient({
+    authClient: model.auth,
+    api,
+    features: { authentication: true, guests: "on-demand", accounts: true },
+  });
+  const hook = renderHook(() => client.useAccounts(), { wrapper: provide(client) });
+  expect(model.auth.signIn.anonymous).not.toHaveBeenCalled();
+  await waitFor(() => expect(hook.result.current.actions.switchToGuest.isDisabled).toBe(false));
+  await act(async () => {
+    expect(await hook.result.current.actions.switchToGuest.run()).toMatchObject({
+      status: "success",
+      data: { outcome: "switched", userId: "guest-0" },
+    });
+  });
+  expect(model.current).toBe("guest-0");
+
+  // Signing the guest out leaves the context signed out, not a new guest.
+  await act(async () => void (await hook.result.current.actions.signOutAll.run()));
+  expect(model.auth.signIn.anonymous).toHaveBeenCalledOnce();
+  expect(model.current).toBeUndefined();
+});
+
 it("signs the device's last account out with Better Auth's sign-out", async () => {
   const { model, client, wrapper } = fixture({}, alice);
   const hook = renderHook(() => client.useSignOut(), { wrapper });

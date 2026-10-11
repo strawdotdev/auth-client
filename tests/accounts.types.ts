@@ -72,3 +72,19 @@ function useGuestControls() {
   void accounts.useAccounts().actions.switchToGuest;
 }
 void useGuestControls;
+
+const withGuestsOnDemand = createAuthDataClient({
+  authClient: createAuthClient({
+    plugins: [anonymousClient(), multiSessionClient(), deviceAccountsClient()],
+  }),
+  api,
+  features: { authentication: true, guests: "on-demand", accounts: true },
+});
+function useGuestOnDemand() {
+  void withGuestsOnDemand.useAccounts().actions.switchToGuest.run();
+  // @ts-expect-error on-demand guests keep no automatic guest session
+  void withGuestsOnDemand.useGuestSession;
+}
+void useGuestOnDemand;
+// @ts-expect-error on-demand guests need the accounts capability
+createAuthDataClient({ authClient, api, features: { authentication: true, guests: "on-demand" } });
