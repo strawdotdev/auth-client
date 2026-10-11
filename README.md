@@ -283,7 +283,7 @@ const authData = createAuthDataClient({
   one account; a tab whose account is gone moves on to the device's next within the same session
   read, never showing a passing sign-out. `actions.signOutAll` is Better Auth's sign-out: every
   account. A password change that revokes other sessions keeps every tab signed in.
-- A guest who signs in or up leaves the device's accounts, linked to the account.
+- A guest who signs in or up leaves the device's accounts, linked to the account. Its session stays until the guest is deleted (by the anonymous plugin at once, or by the application later; see Guests), so a page still holding it keeps working until it moves on.
 - With guests, `actions.switchToGuest` makes the tab a guest: the device's guest if it keeps one,
   else a new one beside the device's accounts, which stay signed in.
 
