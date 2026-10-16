@@ -85,12 +85,12 @@ export const deviceAccountsClient = ({
           onSuccess(context) {
             const issued = context.response.headers.get("set-auth-token");
             if (issued) return write(issued);
-            if (
-              !new URL(String(context.request.url), "http://context").pathname.endsWith(
-                "/get-session",
-              )
-            )
-              return;
+            const { pathname } = new URL(String(context.request.url), "http://context");
+            // Signing out ended the session this context named: nothing after it names that
+            // session again, since the server expires the session cookie for a token it no longer
+            // finds, a guest's sign-in at once taking the cookie it sets with it.
+            if (pathname.endsWith("/sign-out")) return write(undefined);
+            if (!pathname.endsWith("/get-session")) return;
             const token = (context.data as SessionRead)?.session?.token;
             if (typeof token === "string" && !read()) write(token);
           },

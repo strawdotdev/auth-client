@@ -287,6 +287,27 @@ it("lets a guest go from the device's accounts once it signs in, linked to the a
   expect((await client.getSession()).data).toBe(null);
 });
 
+it("gives the guest made after a tab's account signs out the session cookie", async () => {
+  server = betterAuth({
+    ...createServer().options,
+    plugins: [anonymous(), multiSession(), bearer(), deviceAccounts()],
+  }) as unknown as typeof server;
+  await account("alice@example.com");
+  const kept = storage();
+  const client = createAuthClient({
+    baseURL: origin,
+    fetchOptions: { customFetchImpl: browserFetch },
+    plugins: [anonymousClient(), multiSessionClient(), deviceAccountsClient({ storage: kept })],
+  });
+  await client.signIn.email({ email: "alice@example.com", password: "password1234" });
+  expect(client.deviceAccounts.selected()).toBeDefined();
+  // As an application with guests does on signing out: a guest at once, before any session read.
+  await client.signOut();
+  await client.signIn.anonymous();
+  expect([...jar.keys()].some((name) => name.endsWith(".session_token"))).toBe(true);
+  expect((await client.getSession()).data?.user.isAnonymous).toBe(true);
+});
+
 it("shows each account's organizations as the application orders and filters them", async () => {
   // Another plugin set; the tests use only the endpoints every set has.
   server = betterAuth({
