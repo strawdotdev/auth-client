@@ -65,15 +65,16 @@ function createGuestStore(
       let phase: WorkflowError["phase"] = "write";
       attempt = (async () => {
         try {
+          let answer: unknown;
           try {
-            await (auth.signIn.anonymous as Write)({}, { throw: true, retry: 0 });
+            answer = await (auth.signIn.anonymous as Write)({}, { throw: true, retry: 0 });
           } catch (cause) {
             // Another request already made this visitor a guest: read that session instead.
             if (getAuthErrorCode(cause) !== "ANONYMOUS_USERS_CANNOT_SIGN_IN_AGAIN_ANONYMOUSLY")
               throw cause;
           }
           phase = "synchronization";
-          await runtime.refreshSession();
+          if (!takeSession(auth, answer)) await runtime.refreshSession();
         } catch (cause) {
           error = { phase, cause, writeSucceeded: phase !== "write" };
           throw cause;
@@ -86,6 +87,22 @@ function createGuestStore(
       return attempt;
     },
   };
+}
+
+type SessionAtom = { get(): object; set(value: object): void };
+
+/**
+ * Takes a guest's sign-in answer as Better Auth's session when it carries one (the server's
+ * `guests()`), sparing the session read. Better Auth still reads it again in the background.
+ */
+function takeSession(auth: GuestClient, answer: unknown) {
+  const atom = (auth as { $store?: { atoms?: Record<string, SessionAtom | undefined> } }).$store
+    ?.atoms?.session;
+  const { session, user } = (answer ?? {}) as { session?: unknown; user?: unknown };
+  if (!atom || typeof session !== "object" || !session || typeof user !== "object" || !user)
+    return false;
+  atom.set({ ...atom.get(), data: { session, user }, error: null, isPending: false });
+  return true;
 }
 
 /** Provider lifecycle: a visitor without a session becomes a guest; readiness latches once. */

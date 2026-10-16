@@ -55,8 +55,9 @@ function createGuestStore(auth, runtime, hasStoredSession) {
             let phase = "write";
             attempt = (async () => {
                 try {
+                    let answer;
                     try {
-                        await auth.signIn.anonymous({}, { throw: true, retry: 0 });
+                        answer = await auth.signIn.anonymous({}, { throw: true, retry: 0 });
                     }
                     catch (cause) {
                         // Another request already made this visitor a guest: read that session instead.
@@ -64,7 +65,8 @@ function createGuestStore(auth, runtime, hasStoredSession) {
                             throw cause;
                     }
                     phase = "synchronization";
-                    await runtime.refreshSession();
+                    if (!takeSession(auth, answer))
+                        await runtime.refreshSession();
                 }
                 catch (cause) {
                     error = { phase, cause, writeSucceeded: phase !== "write" };
@@ -79,6 +81,19 @@ function createGuestStore(auth, runtime, hasStoredSession) {
             return attempt;
         },
     };
+}
+/**
+ * Takes a guest's sign-in answer as Better Auth's session when it carries one (the server's
+ * `guests()`), sparing the session read. Better Auth still reads it again in the background.
+ */
+function takeSession(auth, answer) {
+    const atom = auth.$store
+        ?.atoms?.session;
+    const { session, user } = (answer ?? {});
+    if (!atom || typeof session !== "object" || !session || typeof user !== "object" || !user)
+        return false;
+    atom.set({ ...atom.get(), data: { session, user }, error: null, isPending: false });
+    return true;
 }
 /** Provider lifecycle: a visitor without a session becomes a guest; readiness latches once. */
 export function useGuestSessionLifecycle(runtime, identity) {

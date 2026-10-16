@@ -67,5 +67,32 @@ export declare const deviceAccounts: (options?: DeviceAccountsOptions) => {
         }[]>;
     };
 };
+/**
+ * The server half of `guests`: a guest's sign-in answers with the session it made, beside the
+ * token and user the anonymous plugin answers with, so the client takes it as the session rather
+ * than reading it again (one round trip less before a guest's first page). Needs Better Auth's
+ * `anonymous()`.
+ */
+export declare const guests: () => {
+    id: "guests";
+    hooks: {
+        after: {
+            matcher: (context: import("better-auth").HookEndpointContext) => boolean;
+            handler: (inputContext: import("better-auth").MiddlewareInputContext<import("better-auth").MiddlewareOptions>) => Promise<{
+                session: {
+                    id: string;
+                    createdAt: Date;
+                    updatedAt: Date;
+                    userId: string;
+                    expiresAt: Date;
+                    token: string;
+                    ipAddress?: string | null | undefined;
+                    userAgent?: string | null | undefined;
+                } & Record<string, any>;
+                user: unknown;
+            } | undefined>;
+        }[];
+    };
+};
 export {};
 //# sourceMappingURL=index.d.ts.map

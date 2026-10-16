@@ -104,6 +104,32 @@ export const deviceAccounts = (options = {}) => ({
         }),
     },
 });
+/**
+ * The server half of `guests`: a guest's sign-in answers with the session it made, beside the
+ * token and user the anonymous plugin answers with, so the client takes it as the session rather
+ * than reading it again (one round trip less before a guest's first page). Needs Better Auth's
+ * `anonymous()`.
+ */
+export const guests = () => ({
+    id: "guests",
+    hooks: {
+        after: [
+            {
+                matcher: (context) => context.path === "/sign-in/anonymous",
+                handler: createAuthMiddleware(async (ctx) => {
+                    const made = ctx.context.newSession;
+                    const answer = ctx.context.returned;
+                    if (!made || typeof answer !== "object" || answer === null || !("user" in answer))
+                        return;
+                    return ctx.json({
+                        ...answer,
+                        session: parseSessionOutput(ctx.context.options, made.session),
+                    });
+                }),
+            },
+        ],
+    },
+});
 async function organizationsOf(adapter, userIds) {
     const result = new Map();
     if (!userIds.length)
