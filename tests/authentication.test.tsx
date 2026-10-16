@@ -114,6 +114,16 @@ function sessionStore(initial: Session | null) {
     get refetches() {
       return refetches;
     },
+    /** Better Auth's session atom, which a guest's sign-in answer may fill. */
+    atom: {
+      get: () => ({ data: session, isPending: pending }),
+      set(value: { data: Session | null; isPending: boolean }) {
+        session = next = value.data;
+        pending = value.isPending;
+        convexAuthenticated = Boolean(session);
+        emit();
+      },
+    },
   };
 }
 
@@ -138,6 +148,7 @@ function authenticationClient(initial: Session | null) {
     resetPassword: vi.fn(async (_input: Record<string, unknown>) => ({ status: true })),
     sendVerificationEmail: vi.fn(async (_input: Record<string, unknown>) => ({ status: true })),
     signOut: vi.fn(async (_input: Record<string, unknown>) => ({ status: true })),
+    $store: { atoms: { session: sessions.atom } },
   };
   return { auth, sessions };
 }
@@ -907,6 +918,24 @@ it("makes a visitor with no stored session a guest without waiting for the first
   expect(hook.result.current).toMatchObject({ userId: "guest", isEstablished: true });
   expect(fixture.auth.signIn.anonymous).toHaveBeenCalledOnce();
   expect(fixture.sessions.refetches).toBe(1);
+});
+
+it("takes a guest's session from its sign-in answer rather than reading it again", async () => {
+  const fixture = guestFixture(null, () => false);
+  fixture.sessions.holdFirstRead();
+  // The server's guests() answers with the session beside the anonymous plugin's token and user.
+  fixture.auth.signIn.anonymous.mockImplementation(async () => ({
+    ...guest("guest"),
+    token: guest("guest").session.token,
+  }));
+  const hook = renderHook(() => fixture.client.useGuestSession(), {
+    wrapper: fixture.wrapper,
+  });
+  await waitFor(() =>
+    expect(hook.result.current).toMatchObject({ userId: "guest", isEstablished: true }),
+  );
+  expect(fixture.auth.signIn.anonymous).toHaveBeenCalledOnce();
+  expect(fixture.sessions.refetches).toBe(0);
 });
 
 it("waits for the first session read when the device may hold a session", async () => {
