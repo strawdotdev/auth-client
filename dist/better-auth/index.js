@@ -81,9 +81,9 @@ export const deviceAccounts = (options = {}) => ({
                 .filter((key) => key.includes("_multi-"))
                 .map((key) => ctx.getSignedCookie(key, ctx.context.secret)))).filter((token) => typeof token === "string");
             const now = new Date();
-            const found = tokens.length
-                ? await ctx.context.internalAdapter.findSessions(tokens, { onlyActiveSessions: true })
-                : [];
+            // By token alone, expiry checked below: a lookup by token among unexpired sessions needs an
+            // index on [token, expiresAt], which @convex-dev/better-auth then cannot merge across tokens.
+            const found = tokens.length ? await ctx.context.internalAdapter.findSessions(tokens) : [];
             const byUser = new Map();
             for (const entry of found
                 .filter(({ session }) => session.expiresAt > now)
