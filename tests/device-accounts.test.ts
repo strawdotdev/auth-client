@@ -353,3 +353,19 @@ it("moves the session hook on when any read finds the tab's account gone", async
   stop();
   expect(toggles.length).toBeGreaterThan(0);
 });
+
+it("leaves an expired session out of the device's accounts", async () => {
+  await account("alice@example.com");
+  await account("bob@example.com");
+  const current = tab();
+  await signIn(current, "alice@example.com");
+  await signIn(current, "bob@example.com");
+  const { data } = await current.client.deviceAccounts.list();
+  const alice = data!.find(({ user }) => user.email === "alice@example.com")!;
+
+  const context = await server.$context;
+  await context.internalAdapter.updateSession(alice.session.token, { expiresAt: new Date(0) });
+
+  const after = await current.client.deviceAccounts.list();
+  expect(after.data?.map(({ user }) => user.email)).toEqual(["bob@example.com"]);
+});
